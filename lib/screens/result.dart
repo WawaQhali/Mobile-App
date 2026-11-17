@@ -1,0 +1,175 @@
+import 'package:flutter/material.dart';
+
+import '../data/db.dart';
+import '../routes.dart';
+import '../state/app_state.dart';
+import '../theme/app_theme.dart';
+import '../widgets/shared.dart';
+
+/// Colores e ícono según la clase que devuelve el modelo.
+({Color fondo, Color texto, IconData icono}) estiloClase(String clase) => switch (clase) {
+      'compatible' => (fondo: AppColors.carameloFondo, texto: AppColors.carameloOscuro, icono: Icons.check_circle_outline_rounded),
+      'no_compatible' => (fondo: AppColors.olivaFondo, texto: AppColors.olivaTexto, icono: Icons.remove_circle_outline_rounded),
+      _ => (fondo: AppColors.ambarFondo, texto: AppColors.ambarTexto, icono: Icons.help_outline_rounded),
+    };
+
+/// 10 · Resultado, paso 4 (US07, US08).
+class ResultadoScreen extends StatelessWidget {
+  const ResultadoScreen({super.key});
+
+  void _terminar(BuildContext context) {
+    AppState.instance.terminarEpisodio();
+    Navigator.pushNamedAndRemoveUntil(context, Rutas.home, (_) => false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = (AppState.instance.actual ?? AppState.instance.ultimo)?.resultado;
+    if (r == null) {
+      return Scaffold(
+        body: Center(child: BotonTexto(label: 'No hay resultado. Volver al inicio', onPressed: () => _terminar(context))),
+      );
+    }
+
+    final info = Db.instance.resultado(r.clase);
+    final riesgo = Db.instance.riesgo(r.riesgo);
+    final nivel = riesgo['nivel'] as int;
+    final estilo = estiloClase(r.clase);
+    final colorRiesgo = nivel >= 2 ? AppColors.ambar : AppColors.oliva;
+
+    return Scaffold(
+      body: PantallaScroll(
+        children: [
+          EncabezadoPaso(
+            paso: 4,
+            nombre: 'Resultado',
+            iconoVolver: Icons.close_rounded,
+            onVolver: () => _terminar(context),
+          ),
+          const SizedBox(height: 18),
+          Tarjeta(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(color: estilo.fondo, borderRadius: BorderRadius.circular(16)),
+                      child: Icon(estilo.icono, size: 26, color: estilo.texto),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('¿COMPATIBLE CON URTICARIA AGUDA?',
+                              style: AppText.cuerpo(10.5, weight: FontWeight.w700, color: AppColors.textoSuave)
+                                  .copyWith(letterSpacing: 1.1)),
+                          const SizedBox(height: 4),
+                          Text(info['respuesta'] as String, style: AppText.titulo(21)),
+                          const SizedBox(height: 6),
+                          Pastilla(texto: etiquetaConfianza(r.confianza), fondo: estilo.fondo, color: estilo.texto),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(info['descripcion'] as String, style: AppText.cuerpo(13, color: AppColors.textoSuave, height: 1.5)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Tarjeta(
+            color: AppColors.arena,
+            borde: null,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Según la guía clínica validada y tus respuestas',
+                    style: AppText.cuerpo(11.5, color: AppColors.textoSuave)),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Nivel de riesgo', style: AppText.cuerpo(14, weight: FontWeight.w700)),
+                    Text(riesgo['label'] as String,
+                        style: AppText.cuerpo(14,
+                            weight: FontWeight.w700, color: nivel >= 2 ? AppColors.ambarTexto : AppColors.olivaTexto)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    for (var i = 1; i <= 3; i++) ...[
+                      Expanded(
+                        child: Container(
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: i <= nivel ? colorRiesgo : AppColors.barraVacia,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                      ),
+                      if (i < 3) const SizedBox(width: 5),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 14),
+                const Divider(height: 1, color: AppColors.tostado),
+                const SizedBox(height: 12),
+                Text('Recomendación', style: AppText.cuerpo(14, weight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                for (final rec in r.recomendaciones)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 7),
+                          child: Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(color: AppColors.caramelo, shape: BoxShape.circle),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(rec, style: AppText.cuerpo(13))),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text.rich(
+            const TextSpan(children: [
+              TextSpan(text: 'Aviso: ', style: TextStyle(fontWeight: FontWeight.w700)),
+              TextSpan(
+                  text: 'esta orientación no es un diagnóstico médico ni reemplaza la consulta con un profesional de salud.'),
+            ]),
+            style: AppText.cuerpo(11.5, color: AppColors.textoSuave, height: 1.5),
+          ),
+          const Spacer(),
+          const SizedBox(height: 18),
+          BotonSecundario(
+            label: 'Ver centros de salud cercanos',
+            icono: Icons.location_on_outlined,
+            onPressed: () => Navigator.pushNamed(context, Rutas.centros),
+          ),
+          const SizedBox(height: 10),
+          BotonSecundario(
+            label: 'Resumen para el médico',
+            icono: Icons.assignment_outlined,
+            onPressed: () => Navigator.pushNamed(context, Rutas.resumen),
+          ),
+          const SizedBox(height: 10),
+          BotonPrincipal(label: 'Terminar', onPressed: () => _terminar(context)),
+        ],
+      ),
+    );
+  }
+}
