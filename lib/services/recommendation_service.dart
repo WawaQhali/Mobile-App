@@ -1,29 +1,46 @@
+import '../data/cuestionario.dart';
 import '../data/db.dart';
 import '../state/app_state.dart';
-import 'classifier_service.dart';
+import 'api_client.dart';
 
-/// Nivel de riesgo y recomendación (US07, US08).
+/// Severidad y recomendaciones (US07, US08).
 ///
-/// El riesgo sale de reglas fijas sobre los síntomas: si alguna respuesta tiene
-/// `"riesgo": "moderado"` en db.json, el riesgo es moderado (US20).
-/// Las recomendaciones salen de `db.json -> resultados` (SIMULADO: aquí irá el RAG).
+/// - La severidad la calcula SIEMPRE la app, con las reglas de `preguntas.json`.
+/// - Las recomendaciones las genera el backend con LLM + RAG (`POST /v1/orientacion`).
+///   Si responde 503, no hay conexión o tarda más de 20 s, se usan las
+///   recomendaciones locales de `db.json -> recomendacionesLocales`.
 class RecomendacionService {
-  static Future<ResultadoAnalisis> recomendar(Prediccion prediccion, Episodio episodio) async {
-    final db = Db.instance;
-    final moderado = db.preguntas.any((p) {
-      final r = episodio.respuestas[p['id']];
-      return r != null && db.opcion(p, r)['riesgo'] == 'moderado';
-    });
-    final info = db.resultado(prediccion.clase);
+  static String severidad(Episodio episodio, String? clase) =>
+      Cuestionario.instancia.severidad(episodio.respuestas, clase);
 
-    return ResultadoAnalisis(
-      clase: prediccion.clase,
-      confianza: prediccion.confianza,
-      riesgo: moderado ? 'moderado' : 'bajo',
-      recomendaciones: [
-        ...(info['recomendaciones'] as List).cast<String>(),
-        db.app['recomendacionAlarma'] as String,
-      ],
-    );
+  static Orientacion local(String severidad) => Orientacion(
+    severidad: severidad,
+    recomendaciones: Db.instance.recomendacionesLocales(severidad),
+    origen: 'local',
+  );
+
+  /// Pide las recomendaciones al backend; si falla, devuelve las locales.
+  static Future<Orientacion> orientar(Episodio episodio, {ResultadoAnalisis? resultado}) async {
+    final sev = severidad(episodio, resultado?.clase);
+    final remota = await pedirAlBackend(episodio, sev, resultado);
+    return remota ?? local(sev);
+  }
+
+  /// null si el backend no dio una respuesta válida.
+  static Future<Orientacion?> pedirAlBackend(Episodio episodio, String severidad, ResultadoAnalisis? resultado) async {
+    try {
+      final r = await ApiCliente.instancia.orientacion(
+        installationId: AppState.instance.installationId,
+        severidad: severidad,
+        // Con un signo de alarma el modelo no se ejecuta: se envía indeterminado.
+        clase: resultado?.clase ?? 'indeterminado',
+        confianza: resultado?.confianza ?? 0,
+        versionCuestionario: Cuestionario.instancia.version,
+        respuestas: episodio.respuestas,
+      );
+      return Orientacion(severidad: severidad, recomendaciones: r.recomendaciones, fuentes: r.fuentes, origen: 'rag');
+    } on ApiExcepcion {
+      return null;
+    }
   }
 }

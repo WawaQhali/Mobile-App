@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../data/cuestionario.dart';
 import '../data/db.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/recommendations.dart';
 import '../widgets/shared.dart';
 import 'result.dart';
 
-/// 11 · Resumen para el médico (US10): foto, resultado y todas las respuestas,
-/// para enseñarlo en la consulta o en emergencia.
+/// 11 · Resumen para el médico (US10): la última evaluación guardada en el celular
+/// (foto, resultado, severidad, respuestas y recomendaciones con sus fuentes),
+/// para enseñarla en la consulta o en emergencia. Se reemplaza en cada evaluación.
 class ResumenScreen extends StatelessWidget {
   const ResumenScreen({super.key});
 
@@ -22,31 +25,32 @@ class ResumenScreen extends StatelessWidget {
       ? 'No analizado: signo de alarma'
       : Db.instance.resultado(e.resultado!.clase)['resumen'] as String;
 
-  static String _riesgo(Episodio e) =>
-      e.resultado == null ? 'Emergencia' : Db.instance.riesgo(e.resultado!.riesgo)['label'] as String;
+  static String _severidad(Episodio e) => etiquetaSeveridad(e.severidad ?? 'alta');
 
-  /// Preguntas respondidas, en orden, separadas en alarma y síntomas.
-  static List<(Json, String)> _respondidas(Episodio e, String tipo) {
-    final db = Db.instance;
-    return [
-      for (final p in db.preguntas)
-        if (p['tipo'] == tipo && e.respuestas[p['id']] != null)
-          (p, db.opcion(p, e.respuestas[p['id']]!)['label'] as String),
-    ];
-  }
+  /// Preguntas respondidas, en orden: las de riesgo o las normales (síntomas).
+  static List<(Pregunta, String)> _respondidas(Episodio e, {required bool riesgo}) => [
+    for (final p in Cuestionario.instancia.preguntas)
+      if (p.esRiesgo == riesgo && e.respuestas[p.id] != null) (p, p.textoRespuesta(e.respuestas[p.id]!)),
+  ];
 
   String _texto(Episodio e) {
     final lineas = [
       'Wawa Qhali · Resumen para el médico',
-      '${formatoFecha(e.fecha)} · ${formatoHora(e.fecha)}',
+      '${formatoFecha(e.fecha)} - ${formatoHora(e.fecha)}',
       'Resultado: ${_resultado(e)}'
           '${e.resultado == null ? '' : ' (${etiquetaConfianza(e.resultado!.confianza).toLowerCase()})'}',
-      'Nivel de riesgo: ${_riesgo(e)}',
+      'Severidad: ${_severidad(e)}',
       '',
       'Signos de alarma:',
-      for (final (p, r) in _respondidas(e, 'alarma')) '- ${p['resumen']}: $r',
-      if (_respondidas(e, 'sintoma').isNotEmpty) ...['', 'Síntomas:'],
-      for (final (p, r) in _respondidas(e, 'sintoma')) '- ${p['resumen']}: $r',
+      for (final (p, r) in _respondidas(e, riesgo: true)) '- ${p.texto} $r',
+      if (_respondidas(e, riesgo: false).isNotEmpty) ...['', 'Síntomas:'],
+      for (final (p, r) in _respondidas(e, riesgo: false)) '- ${p.texto} $r',
+      if (e.orientacion != null) ...[
+        '',
+        'Recomendaciones:',
+        for (final rec in e.orientacion!.recomendaciones) '- $rec',
+        if (e.orientacion!.fuentes.isNotEmpty) 'Fuentes: ${e.orientacion!.fuentes.join(', ')}',
+      ],
       '',
       'Orientación preliminar: no es un diagnóstico médico.',
     ];
@@ -82,8 +86,8 @@ class ResumenScreen extends StatelessWidget {
           final estilo = r == null
               ? (fondo: AppColors.terracotaFondo, texto: AppColors.terracota, icono: Icons.warning_amber_rounded)
               : estiloClase(r.clase);
-          final alarmas = _respondidas(e, 'alarma');
-          final sintomas = _respondidas(e, 'sintoma');
+          final alarmas = _respondidas(e, riesgo: true);
+          final sintomas = _respondidas(e, riesgo: false);
 
           return PantallaScroll(
             children: [
@@ -96,8 +100,10 @@ class ResumenScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Resumen para el médico', style: AppText.titulo(24)),
-                        Text('${formatoFecha(e.fecha)} · ${formatoHora(e.fecha)}',
-                            style: AppText.cuerpo(12.5, color: AppColors.textoSuave)),
+                        Text(
+                          '${formatoFecha(e.fecha)} - ${formatoHora(e.fecha)}',
+                          style: AppText.cuerpo(12.5, color: AppColors.textoSuave),
+                        ),
                       ],
                     ),
                   ),
@@ -146,7 +152,7 @@ class ResumenScreen extends StatelessWidget {
                     ),
                     Row(
                       children: [
-                        Expanded(child: _Dato('Nivel de riesgo', _riesgo(e))),
+                        Expanded(child: _Dato('Severidad', _severidad(e))),
                         Pastilla(
                           texto: r == null ? 'Derivado a emergencia' : etiquetaConfianza(r.confianza),
                           fondo: estilo.fondo,
@@ -163,6 +169,19 @@ class ResumenScreen extends StatelessWidget {
                 const SizedBox(height: 12),
                 _Respuestas(titulo: 'Síntomas', filas: sintomas),
               ],
+              if (e.orientacion != null) ...[
+                const SizedBox(height: 12),
+                Tarjeta(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Recomendaciones', style: AppText.cuerpo(14, weight: FontWeight.w700)),
+                      const SizedBox(height: 8),
+                      ListaRecomendaciones(e.orientacion!),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               Text(
                 'Solo guardamos la última foto, en este celular; se reemplaza en tu siguiente evaluación. '
@@ -171,7 +190,11 @@ class ResumenScreen extends StatelessWidget {
               ),
               const Spacer(),
               const SizedBox(height: 18),
-              BotonPrincipal(label: 'Compartir', icono: Icons.ios_share_rounded, onPressed: () => _compartir(context, e)),
+              BotonPrincipal(
+                label: 'Compartir',
+                icono: Icons.ios_share_rounded,
+                onPressed: () => _compartir(context, e),
+              ),
               const SizedBox(height: 10),
               BotonSecundario(
                 label: 'Borrar foto del celular',
@@ -210,7 +233,7 @@ class _Respuestas extends StatelessWidget {
   const _Respuestas({required this.titulo, required this.filas});
 
   final String titulo;
-  final List<(Json, String)> filas;
+  final List<(Pregunta, String)> filas;
 
   @override
   Widget build(BuildContext context) {
@@ -227,14 +250,21 @@ class _Respuestas extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(child: Text(p['resumen'] as String, style: AppText.cuerpo(13))),
+                      Expanded(flex: 3, child: Text(p.texto, style: AppText.cuerpo(13))),
                       const SizedBox(width: 10),
-                      Text(
-                        respuesta,
-                        style: AppText.cuerpo(13,
+                      Flexible(
+                        flex: 2,
+                        child: Text(
+                          respuesta,
+                          textAlign: TextAlign.right,
+                          style: AppText.cuerpo(
+                            13,
                             weight: FontWeight.w700,
-                            color: p['tipo'] == 'alarma' && respuesta == 'Sí' ? AppColors.terracota : AppColors.tinta),
+                            color: p.esRiesgo && respuesta == 'Sí' ? AppColors.terracota : AppColors.tinta,
+                          ),
+                        ),
                       ),
                     ],
                   ),

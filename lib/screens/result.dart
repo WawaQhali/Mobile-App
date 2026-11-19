@@ -1,17 +1,27 @@
 import 'package:flutter/material.dart';
 
+import '../data/cuestionario.dart';
 import '../data/db.dart';
 import '../routes.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/recommendations.dart';
 import '../widgets/shared.dart';
 
 /// Colores e ícono según la clase que devuelve el modelo.
 ({Color fondo, Color texto, IconData icono}) estiloClase(String clase) => switch (clase) {
-      'compatible' => (fondo: AppColors.carameloFondo, texto: AppColors.carameloOscuro, icono: Icons.check_circle_outline_rounded),
-      'no_compatible' => (fondo: AppColors.olivaFondo, texto: AppColors.olivaTexto, icono: Icons.remove_circle_outline_rounded),
-      _ => (fondo: AppColors.ambarFondo, texto: AppColors.ambarTexto, icono: Icons.help_outline_rounded),
-    };
+  'compatible' => (
+    fondo: AppColors.carameloFondo,
+    texto: AppColors.carameloOscuro,
+    icono: Icons.check_circle_outline_rounded,
+  ),
+  'no_compatible' => (
+    fondo: AppColors.olivaFondo,
+    texto: AppColors.olivaTexto,
+    icono: Icons.remove_circle_outline_rounded,
+  ),
+  _ => (fondo: AppColors.ambarFondo, texto: AppColors.ambarTexto, icono: Icons.help_outline_rounded),
+};
 
 /// 10 · Resultado, paso 4 (US07, US08).
 class ResultadoScreen extends StatelessWidget {
@@ -24,18 +34,23 @@ class ResultadoScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final r = (AppState.instance.actual ?? AppState.instance.ultimo)?.resultado;
-    if (r == null) {
+    final e = AppState.instance.actual ?? AppState.instance.ultimo;
+    final r = e?.resultado;
+    final o = e?.orientacion;
+    if (r == null || o == null) {
       return Scaffold(
-        body: Center(child: BotonTexto(label: 'No hay resultado. Volver al inicio', onPressed: () => _terminar(context))),
+        body: Center(
+          child: BotonTexto(label: 'No hay resultado. Volver al inicio', onPressed: () => _terminar(context)),
+        ),
       );
     }
 
     final info = Db.instance.resultado(r.clase);
-    final riesgo = Db.instance.riesgo(r.riesgo);
-    final nivel = riesgo['nivel'] as int;
+    final severidad = Db.instance.severidad(o.severidad);
+    final nivel = severidad['nivel'] as int;
     final estilo = estiloClase(r.clase);
-    final colorRiesgo = nivel >= 2 ? AppColors.ambar : AppColors.oliva;
+    final colores = colorSeveridad(o.severidad);
+    final motivos = Cuestionario.instancia.motivosSeveridad(e!.respuestas, r.clase);
 
     return Scaffold(
       body: PantallaScroll(
@@ -64,9 +79,14 @@ class ResultadoScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('¿COMPATIBLE CON URTICARIA AGUDA?',
-                              style: AppText.cuerpo(10.5, weight: FontWeight.w700, color: AppColors.textoSuave)
-                                  .copyWith(letterSpacing: 1.1)),
+                          Text(
+                            '¿COMPATIBLE CON URTICARIA AGUDA?',
+                            style: AppText.cuerpo(
+                              10.5,
+                              weight: FontWeight.w700,
+                              color: AppColors.textoSuave,
+                            ).copyWith(letterSpacing: 1.1),
+                          ),
                           const SizedBox(height: 4),
                           Text(info['respuesta'] as String, style: AppText.titulo(21)),
                           const SizedBox(height: 6),
@@ -77,7 +97,10 @@ class ResultadoScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                Text(info['descripcion'] as String, style: AppText.cuerpo(13, color: AppColors.textoSuave, height: 1.5)),
+                Text(
+                  info['descripcion'] as String,
+                  style: AppText.cuerpo(13, color: AppColors.textoSuave, height: 1.5),
+                ),
               ],
             ),
           ),
@@ -88,16 +111,19 @@ class ResultadoScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Según la guía clínica validada y tus respuestas',
-                    style: AppText.cuerpo(11.5, color: AppColors.textoSuave)),
+                Text(
+                  'Según tus respuestas y el análisis de la foto',
+                  style: AppText.cuerpo(11.5, color: AppColors.textoSuave),
+                ),
                 const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Nivel de riesgo', style: AppText.cuerpo(14, weight: FontWeight.w700)),
-                    Text(riesgo['label'] as String,
-                        style: AppText.cuerpo(14,
-                            weight: FontWeight.w700, color: nivel >= 2 ? AppColors.ambarTexto : AppColors.olivaTexto)),
+                    Text('Severidad', style: AppText.cuerpo(14, weight: FontWeight.w700)),
+                    Text(
+                      severidad['label'] as String,
+                      style: AppText.cuerpo(14, weight: FontWeight.w700, color: colores.texto),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -108,7 +134,7 @@ class ResultadoScreen extends StatelessWidget {
                         child: Container(
                           height: 6,
                           decoration: BoxDecoration(
-                            color: i <= nivel ? colorRiesgo : AppColors.barraVacia,
+                            color: i <= nivel ? colores.barra : AppColors.barraVacia,
                             borderRadius: BorderRadius.circular(3),
                           ),
                         ),
@@ -117,40 +143,47 @@ class ResultadoScreen extends StatelessWidget {
                     ],
                   ],
                 ),
+                const SizedBox(height: 8),
+                Text(severidad['descripcion'] as String, style: AppText.cuerpo(12.5, color: AppColors.textoSuave)),
+                if (motivos.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Por qué: ${motivos.join(' · ')}',
+                    style: AppText.cuerpo(12, weight: FontWeight.w600, color: colores.texto),
+                  ),
+                ],
                 const SizedBox(height: 14),
                 const Divider(height: 1, color: AppColors.tostado),
                 const SizedBox(height: 12),
                 Text('Recomendación', style: AppText.cuerpo(14, weight: FontWeight.w700)),
                 const SizedBox(height: 8),
-                for (final rec in r.recomendaciones)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(top: 7),
-                          child: Container(
-                            width: 6,
-                            height: 6,
-                            decoration: const BoxDecoration(color: AppColors.caramelo, shape: BoxShape.circle),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(child: Text(rec, style: AppText.cuerpo(13))),
-                      ],
-                    ),
-                  ),
+                ListaRecomendaciones(o),
               ],
             ),
           ),
+          ListenableBuilder(
+            listenable: AppState.instance,
+            builder: (context, _) => switch (e.donacion) {
+              'enviando' => const _EstadoDonacion(Icons.lock_clock_outlined, 'Cifrando y donando tu foto…'),
+              'enviada' => const _EstadoDonacion(Icons.lock_outline_rounded, 'Foto donada, cifrada y anónima. ¡Gracias!'),
+              'fallo' => const _EstadoDonacion(Icons.cloud_off_outlined, 'No se pudo donar la foto esta vez.'),
+              _ => const SizedBox.shrink(),
+            },
+          ),
           const SizedBox(height: 12),
           Text.rich(
-            const TextSpan(children: [
-              TextSpan(text: 'Aviso: ', style: TextStyle(fontWeight: FontWeight.w700)),
-              TextSpan(
-                  text: 'esta orientación no es un diagnóstico médico ni reemplaza la consulta con un profesional de salud.'),
-            ]),
+            const TextSpan(
+              children: [
+                TextSpan(
+                  text: 'Aviso: ',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                TextSpan(
+                  text:
+                      'esta orientación no es un diagnóstico médico ni reemplaza la consulta con un profesional de salud.',
+                ),
+              ],
+            ),
             style: AppText.cuerpo(11.5, color: AppColors.textoSuave, height: 1.5),
           ),
           const Spacer(),
@@ -170,6 +203,21 @@ class ResultadoScreen extends StatelessWidget {
           BotonPrincipal(label: 'Terminar', onPressed: () => _terminar(context)),
         ],
       ),
+    );
+  }
+}
+
+class _EstadoDonacion extends StatelessWidget {
+  const _EstadoDonacion(this.icono, this.texto);
+
+  final IconData icono;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Pastilla(texto: texto, icono: icono, fondo: AppColors.olivaFondo, color: AppColors.olivaTexto),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../data/cuestionario.dart';
 import '../data/db.dart';
 import '../routes.dart';
 import '../services/links.dart';
@@ -49,7 +50,7 @@ class BienvenidaScreen extends StatelessWidget {
               const Expanded(child: _Rasgo(icono: Icons.photo_camera_outlined, texto: 'Una foto')),
               const SizedBox(width: 8),
               Expanded(
-                child: _Rasgo(icono: Icons.checklist_rounded, texto: '${Db.instance.preguntas.length} preguntas'),
+                child: _Rasgo(icono: Icons.checklist_rounded, texto: '${Cuestionario.instancia.preguntas.length} preguntas'),
               ),
               const SizedBox(width: 8),
               const Expanded(child: _Rasgo(icono: Icons.favorite_border_rounded, texto: 'Orientación')),

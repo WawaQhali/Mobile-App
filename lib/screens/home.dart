@@ -6,6 +6,7 @@ import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared.dart';
 import '../widgets/illustrations.dart';
+import '../widgets/recommendations.dart';
 
 /// 04 · Inicio (sin login).
 class InicioScreen extends StatelessWidget {
@@ -150,7 +151,10 @@ class _UltimaEvaluacion extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = episodio.resultado;
-    final estado = r == null ? 'Signo de alarma' : 'Riesgo ${Db.instance.riesgo(r.riesgo)['label'].toString().toLowerCase()}';
+    final severidad = episodio.severidad;
+    final estado = episodio.hayAlarma || r == null || severidad == null
+        ? 'Signo de alarma'
+        : 'Severidad ${etiquetaSeveridad(severidad).toLowerCase()}';
     return Tarjeta(
       padding: const EdgeInsets.fromLTRB(10, 10, 14, 10),
       onTap: () => Navigator.pushNamed(context, Rutas.resumen),

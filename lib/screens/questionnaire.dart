@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../data/db.dart';
+import '../data/cuestionario.dart';
 import '../routes.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared.dart';
 
-/// 07 · Cuestionario, paso 2 (US04, US05): un solo cuestionario, una pregunta por pantalla.
-/// Primero las de alarma (reglas fijas, antes del modelo): un «Sí» va directo a emergencia.
-/// Luego los síntomas, que alimentan el nivel de riesgo.
+/// 07 · Cuestionario, paso 2 (US04, US05): `assets/preguntas.json` v1, una por pantalla.
+/// Primero las 8 de riesgo (antes del modelo): un «Sí» va directo a emergencia.
+/// Luego las 6 normales, que deciden la severidad entre leve y moderada.
 class CuestionarioScreen extends StatefulWidget {
   const CuestionarioScreen({super.key});
 
@@ -17,20 +17,20 @@ class CuestionarioScreen extends StatefulWidget {
 }
 
 class _CuestionarioScreenState extends State<CuestionarioScreen> {
-  final _preguntas = Db.instance.preguntas;
+  final _preguntas = Cuestionario.instancia.preguntas;
   int _i = 0;
 
   Episodio get _episodio => AppState.instance.episodio;
 
-  void _responder(Json pregunta, String opcion) {
-    final id = pregunta['id'] as String;
-    if (pregunta['tipo'] == 'alarma' && opcion == 'si') {
+  void _responder(Pregunta pregunta, Object valor) {
+    final id = pregunta.id;
+    if (pregunta.esRiesgo && valor == true) {
       AppState.instance.marcarAlarma(id);
       Navigator.pushNamed(context, Rutas.emergencia);
       return;
     }
     if (_episodio.alarma == id) _episodio.alarma = null; // volvió de emergencia y corrigió
-    _episodio.respuestas[id] = opcion;
+    _episodio.respuestas[id] = valor;
 
     if (_i < _preguntas.length - 1) {
       setState(() => _i++);
@@ -50,8 +50,8 @@ class _CuestionarioScreenState extends State<CuestionarioScreen> {
   @override
   Widget build(BuildContext context) {
     final pregunta = _preguntas[_i];
-    final alarma = pregunta['tipo'] == 'alarma';
-    final elegida = _episodio.respuestas[pregunta['id']];
+    final alarma = pregunta.esRiesgo;
+    final elegida = _episodio.respuestas[pregunta.id];
 
     return PopScope(
       canPop: _i == 0,
@@ -66,8 +66,10 @@ class _CuestionarioScreenState extends State<CuestionarioScreen> {
             Row(
               children: [
                 Expanded(
-                  child: Text('Pregunta ${_i + 1} de ${_preguntas.length}',
-                      style: AppText.cuerpo(12.5, weight: FontWeight.w600, color: AppColors.textoSuave)),
+                  child: Text(
+                    'Pregunta ${_i + 1} de ${_preguntas.length}',
+                    style: AppText.cuerpo(12.5, weight: FontWeight.w600, color: AppColors.textoSuave),
+                  ),
                 ),
                 if (alarma)
                   const Pastilla(
@@ -96,7 +98,7 @@ class _CuestionarioScreenState extends State<CuestionarioScreen> {
                 key: ValueKey(_i),
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(pregunta['texto'] as String, style: AppText.titulo(27)),
+                  Text(pregunta.texto, style: AppText.titulo(pregunta.texto.length > 55 ? 23 : 27)),
                   if (alarma) ...[
                     const SizedBox(height: 12),
                     Row(
@@ -108,8 +110,10 @@ class _CuestionarioScreenState extends State<CuestionarioScreen> {
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text('Si respondes «Sí», te diremos que vayas a emergencia.',
-                              style: AppText.cuerpo(13, color: AppColors.textoSuave)),
+                          child: Text(
+                            'Si respondes «Sí», te diremos que vayas a emergencia.',
+                            style: AppText.cuerpo(13, color: AppColors.textoSuave),
+                          ),
                         ),
                       ],
                     ),
@@ -119,12 +123,12 @@ class _CuestionarioScreenState extends State<CuestionarioScreen> {
             ),
             const Spacer(),
             const SizedBox(height: 24),
-            for (final o in Db.instance.opciones(pregunta)) ...[
+            for (final (label, valor) in pregunta.botones) ...[
               _BotonOpcion(
-                label: o['label'] as String,
-                elegida: elegida == o['id'],
-                alarma: alarma && o['id'] == 'si',
-                onTap: () => _responder(pregunta, o['id'] as String),
+                label: label,
+                elegida: elegida == valor,
+                alarma: alarma && valor == true,
+                onTap: () => _responder(pregunta, valor),
               ),
               const SizedBox(height: 12),
             ],
@@ -148,13 +152,13 @@ class _BotonOpcion extends StatelessWidget {
     final color = elegida
         ? AppColors.sobreAccion
         : alarma
-            ? AppColors.terracota
-            : AppColors.tinta;
+        ? AppColors.terracota
+        : AppColors.tinta;
     final borde = elegida
         ? AppColors.tinta
         : alarma
-            ? AppColors.terracotaBorde
-            : AppColors.borde;
+        ? AppColors.terracotaBorde
+        : AppColors.borde;
 
     return SizedBox(
       height: 60,

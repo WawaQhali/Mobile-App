@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../routes.dart';
 import '../services/classifier_service.dart';
+import '../services/donation_service.dart';
 import '../services/recommendation_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -18,6 +19,7 @@ class AnalisisScreen extends StatefulWidget {
 class _AnalisisScreenState extends State<AnalisisScreen> with SingleTickerProviderStateMixin {
   late final _progreso = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400))..forward();
   bool _resultadoListo = false;
+  bool _buscandoRecomendaciones = false;
 
   static const _etapas = [
     ('Preparando la imagen', .30),
@@ -33,11 +35,17 @@ class _AnalisisScreenState extends State<AnalisisScreen> with SingleTickerProvid
 
   Future<void> _analizar() async {
     final e = AppState.instance.episodio;
-    final prediccion = await ClasificadorService.clasificar(e.foto);
-    final resultado = await RecomendacionService.recomendar(prediccion, e);
+    // Modelo TFLite en el celular sobre el recorte de 1024 px.
+    final prediccion = await Clasificador.instancia.clasificar(e.foto!);
+    final resultado = ResultadoAnalisis(clase: prediccion.clase, confianza: prediccion.confianza);
+    if (mounted) setState(() => _buscandoRecomendaciones = true);
+    // Severidad en la app; recomendaciones del backend (LLM + RAG) o, si falla, locales.
+    final orientacion = await RecomendacionService.orientar(e, resultado: resultado);
     if (!mounted) return;
-    AppState.instance.guardarResultado(resultado);
-    setState(() => _resultadoListo = true);
+    await AppState.instance.guardarResultado(resultado, orientacion);
+    // Si el padre aceptó donar: se cifra y se envía en segundo plano (sección 6).
+    DonacionService.donarSiCorresponde(e);
+    if (mounted) setState(() => _resultadoListo = true);
   }
 
   @override
@@ -77,7 +85,9 @@ class _AnalisisScreenState extends State<AnalisisScreen> with SingleTickerProvid
                           backgroundColor: AppColors.borde,
                         ),
                       ),
-                      ClipOval(child: SizedBox(width: 150, height: 150, child: FotoLesion(bytes: foto))),
+                      ClipOval(
+                        child: SizedBox(width: 150, height: 150, child: FotoLesion(bytes: foto)),
+                      ),
                       Positioned(
                         bottom: 4,
                         right: 18,
@@ -92,17 +102,24 @@ class _AnalisisScreenState extends State<AnalisisScreen> with SingleTickerProvid
                 ),
               ),
               const SizedBox(height: 26),
-              Text(listo ? 'Análisis listo' : 'Analizando la foto…', textAlign: TextAlign.center, style: AppText.titulo(27)),
+              Text(
+                listo ? 'Análisis listo' : 'Analizando la foto…',
+                textAlign: TextAlign.center,
+                style: AppText.titulo(27),
+              ),
               const SizedBox(height: 6),
-              Text('En tu celular, en menos de 3 segundos',
-                  textAlign: TextAlign.center, style: AppText.cuerpo(13, color: AppColors.textoSuave)),
+              Text(
+                p >= 1 && !listo && _buscandoRecomendaciones
+                    ? 'Buscando recomendaciones en las guías clínicas…'
+                    : 'En tu celular, en menos de 3 segundos',
+                textAlign: TextAlign.center,
+                style: AppText.cuerpo(13, color: AppColors.textoSuave),
+              ),
               const SizedBox(height: 26),
               Tarjeta(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: ListaConDivisores(
-                  children: [
-                    for (final (label, umbral) in _etapas) _FilaEtapa(label: label, hecha: p >= umbral),
-                  ],
+                  children: [for (final (label, umbral) in _etapas) _FilaEtapa(label: label, hecha: p >= umbral)],
                 ),
               ),
               const Spacer(),
@@ -156,8 +173,11 @@ class _FilaEtapa extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: AppText.cuerpo(13.5,
-                  weight: FontWeight.w500, color: hecha ? AppColors.tinta : AppColors.textoSuave),
+              style: AppText.cuerpo(
+                13.5,
+                weight: FontWeight.w500,
+                color: hecha ? AppColors.tinta : AppColors.textoSuave,
+              ),
             ),
           ),
         ],
