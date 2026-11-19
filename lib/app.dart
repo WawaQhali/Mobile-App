@@ -13,6 +13,7 @@ import 'screens/permissions.dart';
 import 'screens/result.dart';
 import 'screens/summary.dart';
 import 'screens/photo_validation.dart';
+import 'state/app_state.dart';
 import 'theme/app_theme.dart';
 
 class WawaQhaliApp extends StatelessWidget {
@@ -24,7 +25,8 @@ class WawaQhaliApp extends StatelessWidget {
       title: 'Wawa Qhali',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
-      initialRoute: Rutas.bienvenida,
+      // Si ya aceptó los términos en otra sesión, entra directo a Inicio.
+      initialRoute: AppState.instance.terminosAceptados ? Rutas.home : Rutas.bienvenida,
       routes: {
         Rutas.bienvenida: (_) => const BienvenidaScreen(),
         Rutas.donacion: (_) => const DonacionScreen(),
