@@ -18,30 +18,23 @@ class Db {
   }
 
   Json get app => _data['app'] as Json;
-  Json get demo => _data['demo'] as Json;
   Json get emergencia => _data['emergencia'] as Json;
 
   List<Json> get permisos => _lista('permisos');
   List<Json> get validaciones => _lista('validaciones');
   List<Json> get guias => _lista('guias');
-  List<Json> get centros => _lista('centros');
 
-  /// Cuestionario único: primero las preguntas de alarma, luego los síntomas.
-  List<Json> get preguntas => ((_data['preguntas'] as Json)['lista'] as List).cast<Json>();
-  int get ladoMinimoFotoPx => (_data['foto'] as Json)['ladoMinimoPx'] as int;
+  /// Umbrales de la validación de la foto (provisionales, sección 13 de la guía).
+  Json get foto => _data['foto'] as Json;
 
   Json resultado(String clase) => (_data['resultados'] as Json)[clase] as Json;
-  Json riesgo(String id) => (_data['riesgos'] as Json)[id] as Json;
 
-  /// Opciones de una pregunta; las de alarma siempre son Sí / No.
-  List<Json> opciones(Json pregunta) => pregunta['tipo'] == 'alarma'
-      ? const [
-          {'id': 'si', 'label': 'Sí'},
-          {'id': 'no', 'label': 'No'},
-        ]
-      : (pregunta['opciones'] as List).cast<Json>();
+  /// leve | moderada | alta -> label, nivel (1 a 3) y descripción.
+  Json severidad(String id) => (_data['severidades'] as Json)[id] as Json;
 
-  Json opcion(Json pregunta, String id) => opciones(pregunta).firstWhere((o) => o['id'] == id);
+  /// Respaldo local cuando el backend no da recomendaciones.
+  List<String> recomendacionesLocales(String severidad) =>
+      ((_data['recomendacionesLocales'] as Json)[severidad] as List).cast<String>();
 
   List<Json> _lista(String key) => (_data[key] as List).cast<Json>();
 }

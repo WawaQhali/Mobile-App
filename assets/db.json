@@ -1,6 +1,5 @@
 {
-  "_nota": "Datos locales de la app. Reemplaza al backend, a Firebase y al modelo mientras no existan. Los valores entre [corchetes] son placeholders.",
-
+  "_nota": "Contenido estático de la app. Las preguntas están en preguntas.json; los centros de salud se buscan cerca de tu ubicación (OpenStreetMap).",
   "app": {
     "version": "0.1.0",
     "modelo": "0.0 (simulado)",
@@ -10,93 +9,116 @@
     "terminosUrl": "https://www.google.com",
     "privacidadUrl": "https://www.google.com",
     "avisoRostro": "Si en la foto se ve el rostro de tu wawa, esa foto no se dona, para proteger su identidad. Igual puedes usarla para tu orientación.",
-    "recomendacionAlarma": "Si aparece un signo de alarma, ve a emergencia.",
     "avisoLegal": "Wawa Qhali brinda una orientación preliminar y no emite diagnósticos médicos ni reemplaza la consulta con un profesional de salud. Ante cualquier duda o signo de alarma, acude a un establecimiento de salud o llama al SAMU 106."
   },
-
-  "demo": {
-    "_nota": "Simula lo que todavía no existe. validacion: aprobada | falla_nitidez | varias_fallas | con_rostro. resultado: compatible | no_compatible. Si confianza < 0.6 el resultado pasa a indeterminado.",
-    "validacion": "aprobada",
-    "resultado": "compatible",
-    "confianza": 0.91
-  },
-
   "permisos": [
-    { "id": "camara", "nombre": "Cámara", "motivo": "Para tomar la foto de la lesión." },
-    { "id": "telefono", "nombre": "Teléfono", "motivo": "Para llamar al SAMU 106 con un toque en una emergencia." },
-    { "id": "ubicacion", "nombre": "Ubicación", "motivo": "Para mostrarte los centros de salud más cercanos." }
+    {
+      "id": "camara",
+      "nombre": "Cámara",
+      "motivo": "Para tomar la foto de la lesión."
+    },
+    {
+      "id": "telefono",
+      "nombre": "Teléfono",
+      "motivo": "Para llamar al SAMU 106 con un toque en una emergencia."
+    },
+    {
+      "id": "ubicacion",
+      "nombre": "Ubicación",
+      "motivo": "Para mostrarte los centros de salud más cercanos."
+    }
   ],
-
   "validaciones": [
-    { "id": "nitidez", "label": "Nitidez", "problema": "Borrosa", "consejo": "La imagen salió borrosa: apoya los codos y vuelve a intentarlo." },
-    { "id": "iluminacion", "label": "Iluminación", "problema": "Muy oscura", "consejo": "Hay poca luz: busca luz natural, cerca de una ventana." },
-    { "id": "resolucion", "label": "Resolución (mín. 1024 x 1024 px)", "problema": "Muy pequeña", "consejo": "La foto es muy pequeña: usa la cámara principal del celular, no la de selfies." },
-    { "id": "piel", "label": "Piel en el encuadre", "problema": "No se ve piel", "consejo": "No se ve la piel: quita la ropa de la zona." },
-    { "id": "rostro", "label": "Sin rostro del menor", "problema": "Se ve el rostro", "consejo": "Se ve el rostro de tu wawa: puedes seguir, pero esta foto no se donará.", "bloquea": false }
+    {
+      "id": "nitidez",
+      "label": "Nitidez",
+      "problema": "Borrosa",
+      "consejo": "La imagen salió borrosa: apoya los codos y vuelve a intentarlo."
+    },
+    {
+      "id": "iluminacion",
+      "label": "Iluminación",
+      "problema": "Muy oscura",
+      "consejo": "Hay poca luz: busca luz natural, cerca de una ventana."
+    },
+    {
+      "id": "resolucion",
+      "label": "Resolución (mín. 1024 x 1024 px)",
+      "problema": "Muy pequeña",
+      "consejo": "La foto es muy pequeña: usa la cámara principal del celular, no la de selfies."
+    },
+    {
+      "id": "piel",
+      "label": "Piel en el encuadre",
+      "problema": "No se ve piel",
+      "consejo": "No se ve la piel: quita la ropa de la zona."
+    },
+    {
+      "id": "rostro",
+      "label": "Sin rostro del menor",
+      "problema": "Se ve el rostro",
+      "consejo": "Se ve el rostro de tu wawa: puedes seguir, pero esta foto no se donará.",
+      "bloquea": false
+    }
   ],
-
   "foto": {
-    "_nota": "Lado más corto mínimo de la foto en px (US16: 1024 x 1024 px).",
-    "ladoMinimoPx": 1024
+    "_nota": "Umbrales de la validación (sección 5.2). PROVISIONALES: calibrar con fotos reales (sección 13 de la guía). La pantalla de validación muestra el valor medido de cada foto.",
+    "ladoMinimoPx": 1024,
+    "nitidezMinima": 20,
+    "luminanciaMinima": 60,
+    "luminanciaMaxima": 215,
+    "proporcionPielMinima": 0.25
   },
-
-  "preguntas": {
-    "_nota": "Un solo cuestionario. Primero las de alarma: un «Sí» manda a emergencia de inmediato. Una opción con riesgo «moderado» sube el nivel de riesgo. Borrador: validar con el profesional de salud (US28).",
-    "lista": [
-      { "id": "respirar", "tipo": "alarma", "texto": "¿Le cuesta respirar o le silba el pecho?", "resumen": "Dificultad para respirar" },
-      { "id": "hinchazon", "tipo": "alarma", "texto": "¿Tiene hinchados los labios, la lengua o los párpados?", "resumen": "Labios, lengua o párpados hinchados" },
-      { "id": "tragar", "tipo": "alarma", "texto": "¿Le cuesta tragar o babea más de lo normal?", "resumen": "Dificultad para tragar" },
-      { "id": "vomitos", "tipo": "alarma", "texto": "¿Vomita varias veces o tiene dolor fuerte de barriga?", "resumen": "Vómitos o dolor fuerte de barriga" },
-      { "id": "decaido", "tipo": "alarma", "texto": "¿Está muy decaído, muy dormido o se desmayó?", "resumen": "Decaído, somnoliento o desmayo" },
-      {
-        "id": "picor", "tipo": "sintoma", "texto": "¿Le pican las ronchas?", "resumen": "Picazón",
-        "opciones": [{ "id": "si", "label": "Sí" }, { "id": "no", "label": "No" }, { "id": "nose", "label": "No sé" }]
-      },
-      {
-        "id": "cambian", "tipo": "sintoma", "texto": "¿Las ronchas cambian de lugar o aparecen y desaparecen?", "resumen": "Ronchas que cambian de lugar",
-        "opciones": [{ "id": "si", "label": "Sí" }, { "id": "no", "label": "No" }, { "id": "nose", "label": "No sé" }]
-      },
-      {
-        "id": "duracion", "tipo": "sintoma", "texto": "¿Desde cuándo tiene las ronchas?", "resumen": "Tiempo con ronchas",
-        "opciones": [{ "id": "hoy", "label": "Menos de 24 horas" }, { "id": "dias", "label": "De 1 a 3 días" }, { "id": "mas", "label": "Más de 3 días", "riesgo": "moderado" }]
-      },
-      {
-        "id": "extension", "tipo": "sintoma", "texto": "¿Cuánto se extienden las ronchas?", "resumen": "Extensión de las ronchas",
-        "opciones": [{ "id": "una", "label": "Una zona" }, { "id": "varias", "label": "Varias zonas", "riesgo": "moderado" }, { "id": "todo", "label": "Todo el cuerpo", "riesgo": "moderado" }]
-      },
-      {
-        "id": "desencadenante", "tipo": "sintoma", "texto": "En las últimas horas, ¿comió algo nuevo, tomó un medicamento o le picó un insecto?", "resumen": "Posible desencadenante",
-        "opciones": [{ "id": "si", "label": "Sí" }, { "id": "no", "label": "No" }, { "id": "nose", "label": "No sé" }]
-      }
-    ]
-  },
-
+  "_preguntas": "Las preguntas viven en assets/preguntas.json (copia exacta del backend).",
   "resultados": {
     "compatible": {
       "respuesta": "Sí, compatible",
       "resumen": "Compatible con urticaria aguda",
-      "descripcion": "La lesión tiene rasgos de habón urticarial: relieve, enrojecimiento y bordes definidos.",
-      "recomendaciones": ["Consulta con su pediatra para confirmar.", "Las ronchas suelen durar menos de 24 h."]
+      "descripcion": "La lesión tiene rasgos de habón urticarial: relieve, enrojecimiento y bordes definidos."
     },
     "no_compatible": {
       "respuesta": "No compatible",
       "resumen": "No compatible con urticaria aguda",
-      "descripcion": "La lesión no se parece a una urticaria. Puede ser otra afección, como dermatitis o una picadura.",
-      "recomendaciones": ["Si persiste o empeora, consulta con su pediatra.", "Evita rascar la zona."]
+      "descripcion": "La lesión no se parece a una urticaria. Puede ser otra afección, como dermatitis o una picadura."
     },
     "indeterminado": {
       "respuesta": "No pudimos determinarlo",
       "resumen": "Indeterminado",
-      "descripcion": "La foto no nos da suficiente seguridad, así que preferimos no adivinar.",
-      "recomendaciones": ["Acude a un establecimiento de salud para que la revisen.", "Lleva la foto contigo."]
+      "descripcion": "La foto no nos da suficiente seguridad, así que preferimos no adivinar."
     }
   },
-
-  "riesgos": {
-    "bajo": { "label": "Bajo", "nivel": 1 },
-    "moderado": { "label": "Moderado", "nivel": 2 }
+  "severidades": {
+    "_nota": "Los mismos tres niveles que usa el backend (seccion 4).",
+    "leve": {
+      "label": "Leve",
+      "nivel": 1,
+      "descripcion": "Se puede manejar en casa"
+    },
+    "moderada": {
+      "label": "Moderada",
+      "nivel": 2,
+      "descripcion": "Requiere consulta médica en las próximas 24 a 48 horas"
+    },
+    "alta": {
+      "label": "Alta",
+      "nivel": 3,
+      "descripcion": "Requiere atención de emergencia inmediata"
+    }
   },
-
+  "recomendacionesLocales": {
+    "_nota": "Respaldo cuando el backend no responde (503, sin internet o más de 20 s). Pendiente de validar con la especialista.",
+    "leve": [
+      "Mantén a tu wawa con ropa fresca y evita que se rasque las ronchas.",
+      "Si las ronchas empeoran o aparece dificultad para respirar o hinchazón de labios o párpados, acude a emergencia."
+    ],
+    "moderada": [
+      "Llévalo a consulta con su pediatra o al centro de salud en las próximas 24 a 48 horas.",
+      "Si aparece dificultad para respirar o hinchazón de labios o párpados, acude a emergencia."
+    ],
+    "alta": [
+      "Acude a emergencia ahora o llama al SAMU (106)."
+    ]
+  },
   "emergencia": {
     "pasos": [
       "No esperes a que las ronchas desaparezcan.",
@@ -104,14 +126,17 @@
       "Lleva la foto de la lesión para mostrarla al médico."
     ]
   },
-
   "guias": [
     {
       "id": "foto",
       "titulo": "Cómo tomar una buena foto",
       "icono": "foto",
       "alarma": false,
-      "puntos": ["Luz natural y sin flash", "A 15–30 cm, con la lesión al centro", "Piel sin ropa encima y sin su rostro"],
+      "puntos": [
+        "Luz natural y sin flash",
+        "A 15–30 cm, con la lesión al centro",
+        "Piel sin ropa encima y sin su rostro"
+      ],
       "texto": ""
     },
     {
@@ -144,11 +169,5 @@
       "puntos": [],
       "texto": "Si las ronchas duran varios días, se repiten seguido o te preocupan, consulta con su pediatra. Wawa Qhali no reemplaza la consulta."
     }
-  ],
-
-  "centros": [
-    { "nombre": "[Establecimiento 1]", "tipo": "emergencia", "distancia": "[1,2 km · 5 min]", "telefono": null, "lat": -12.0850, "lng": -76.9450 },
-    { "nombre": "[Establecimiento 2]", "tipo": "centro", "distancia": "[2,0 km · 8 min]", "telefono": null, "lat": -12.0790, "lng": -76.9300 },
-    { "nombre": "[Establecimiento 3]", "tipo": "emergencia", "distancia": "[3,4 km · 12 min]", "telefono": null, "lat": -12.0700, "lng": -76.9550 }
   ]
 }
