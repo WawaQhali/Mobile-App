@@ -1,17 +1,20 @@
 import 'dart:typed_data';
 
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../data/db.dart';
 import '../routes.dart';
+import '../services/image_processing.dart';
+import '../services/permissions_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared.dart';
 import '../widgets/illustrations.dart';
 
 /// 05 · Captura, paso 1 (US02, US03).
-/// La foto se toma con la cámara del sistema (image_picker); el visor es solo la guía de encuadre.
+/// Vista previa en vivo de la cámara trasera: el círculo marca dónde centrar el habón.
 class CamaraScreen extends StatefulWidget {
   const CamaraScreen({super.key});
 
@@ -19,34 +22,115 @@ class CamaraScreen extends StatefulWidget {
   State<CamaraScreen> createState() => _CamaraScreenState();
 }
 
-class _CamaraScreenState extends State<CamaraScreen> {
+class _CamaraScreenState extends State<CamaraScreen> with WidgetsBindingObserver {
   bool _abriendo = false;
+  CameraController? _camara;
+  bool _sinCamara = false; // sin cámara usable (emulador, web): cámara del sistema o foto de muestra
 
+  bool get _permitido => AppState.instance.permisos['camara'] ?? false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    AppState.instance.addListener(_alCambiarPermisos);
+    _iniciarCamara();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    AppState.instance.removeListener(_alCambiarPermisos);
+    _camara?.dispose();
+    super.dispose();
+  }
+
+  void _alCambiarPermisos() {
+    if (_permitido && _camara == null && !_sinCamara) _iniciarCamara();
+  }
+
+  /// Vista previa en vivo con la cámara trasera, sin flash y sin zoom (sección 5.1).
+  Future<void> _iniciarCamara() async {
+    if (!_permitido || _camara != null) return;
+    try {
+      final camaras = await availableCameras();
+      final trasera = camaras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => camaras.first,
+      );
+      final c = CameraController(trasera, ResolutionPreset.veryHigh, enableAudio: false, imageFormatGroup: ImageFormatGroup.jpeg);
+      await c.initialize();
+      await c.setFlashMode(FlashMode.off);
+      if (!mounted || _camara != null) {
+        await c.dispose();
+        return;
+      }
+      setState(() => _camara = c);
+    } catch (_) {
+      if (mounted) setState(() => _sinCamara = true);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState estado) {
+    final c = _camara;
+    if (estado == AppLifecycleState.inactive || estado == AppLifecycleState.paused) {
+      if (c != null) {
+        setState(() => _camara = null);
+        c.dispose();
+      }
+    } else if (estado == AppLifecycleState.resumed) {
+      _iniciarCamara();
+    }
+  }
+
+  Future<void> _seguir(Uint8List bytes) async {
+    AppState.instance.nuevoEpisodio(bytes);
+    final c = _camara;
+    if (c != null) await c.pausePreview();
+    if (!mounted) return;
+    await Navigator.pushNamed(context, Rutas.validacion);
+    if (c != null && identical(c, _camara)) await c.resumePreview();
+  }
+
+  /// Botón redondo: toma la foto con la vista previa. Sin cámara, usa la del sistema.
+  Future<void> _tomarFoto() async {
+    final c = _camara;
+    if (c == null || !c.value.isInitialized) return _capturar(ImageSource.camera);
+    if (_abriendo || c.value.isTakingPicture) return;
+    setState(() => _abriendo = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final archivo = await c.takePicture();
+      final bytes = await archivo.readAsBytes();
+      if (mounted) setState(() => _abriendo = false);
+      await _seguir(bytes);
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(content: Text('No se pudo tomar la foto. Inténtalo de nuevo.')));
+    } finally {
+      if (mounted && _abriendo) setState(() => _abriendo = false);
+    }
+  }
+
+  /// Galería, o la cámara del sistema si no hay vista previa.
   Future<void> _capturar(ImageSource fuente) async {
     if (_abriendo) return;
     setState(() => _abriendo = true);
     final messenger = ScaffoldMessenger.of(context);
-    final nav = Navigator.of(context);
 
-    var cancelado = false;
     Uint8List? bytes;
     try {
-      final foto = await ImagePicker().pickImage(source: fuente, maxWidth: 2160, maxHeight: 2160, imageQuality: 90);
-      if (foto == null) {
-        cancelado = true;
-      } else {
-        bytes = await foto.readAsBytes();
-      }
+      final foto = await ImagePicker().pickImage(source: fuente, maxWidth: 2160, maxHeight: 2160, imageQuality: 95);
+      if (foto != null) bytes = await foto.readAsBytes();
     } catch (_) {
-      // Sin cámara (emulador, web de escritorio...): seguimos con una foto de muestra.
-      messenger.showSnackBar(const SnackBar(content: Text('No se pudo abrir la cámara. Usamos una foto de muestra.')));
+      // Sin cámara (emulador, pruebas): una foto de muestra generada en el celular.
+      messenger.showSnackBar(const SnackBar(content: Text('No hay cámara disponible. Usamos una foto de muestra.')));
+      bytes = await generarFotoDeMuestra();
     }
 
     if (!mounted) return;
     setState(() => _abriendo = false);
-    if (cancelado) return;
-    AppState.instance.nuevoEpisodio(bytes);
-    nav.pushNamed(Rutas.validacion);
+    if (bytes != null) await _seguir(bytes);
   }
 
   void _ayuda() {
@@ -96,6 +180,20 @@ class _CamaraScreenState extends State<CamaraScreen> {
     );
   }
 
+  Widget _vistaPrevia() {
+    final c = _camara;
+    if (c == null || !c.value.isInitialized) {
+      return const Opacity(opacity: .55, child: CustomPaint(painter: LesionMuestraPainter()));
+    }
+    final tamano = c.value.previewSize!; // viene en horizontal
+    return ClipRect(
+      child: FittedBox(
+        fit: BoxFit.cover,
+        child: SizedBox(width: tamano.height, height: tamano.width, child: CameraPreview(c)),
+      ),
+    );
+  }
+
   Widget _visor() {
     const consejos = [
       (Icons.wb_sunny_outlined, 'Luz natural'),
@@ -125,7 +223,8 @@ class _CamaraScreenState extends State<CamaraScreen> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              const Opacity(opacity: .55, child: CustomPaint(painter: LesionMuestraPainter())),
+              _vistaPrevia(),
+              if (_camara != null) const CustomPaint(painter: _MascaraCirculo(radio: 115, desplazamiento: 7)),
               Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -217,7 +316,7 @@ class _CamaraScreenState extends State<CamaraScreen> {
                         shape: const CircleBorder(side: BorderSide(color: AppColors.caramelo, width: 4)),
                         child: InkWell(
                           customBorder: const CircleBorder(),
-                          onTap: () => _capturar(ImageSource.camera),
+                          onTap: _tomarFoto,
                           child: SizedBox(
                             width: 76,
                             height: 76,
@@ -281,7 +380,7 @@ class _CamaraScreenState extends State<CamaraScreen> {
         ),
         const Spacer(),
         const SizedBox(height: 18),
-        BotonPrincipal(label: 'Permitir cámara', onPressed: () => AppState.instance.permitir('camara')),
+        BotonPrincipal(label: 'Permitir cámara', onPressed: () => pedirPermiso(context, 'camara')),
         const SizedBox(height: 10),
         BotonSecundario(label: 'Elegir de la galería', onPressed: () => _capturar(ImageSource.gallery)),
         const SizedBox(height: 10),
@@ -291,3 +390,26 @@ class _CamaraScreenState extends State<CamaraScreen> {
     );
   }
 }
+
+/// Oscurece todo menos el círculo, para que se note dónde va el habón.
+class _MascaraCirculo extends CustomPainter {
+  const _MascaraCirculo({required this.radio, this.desplazamiento = 0});
+
+  final double radio;
+  final double desplazamiento;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centro = size.center(Offset(0, desplazamiento));
+    final fondo = Path()..addRect(Offset.zero & size);
+    final hueco = Path()..addOval(Rect.fromCircle(center: centro, radius: radio));
+    canvas.drawPath(
+      Path.combine(PathOperation.difference, fondo, hueco),
+      Paint()..color = const Color(0x8C1F1914),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_MascaraCirculo old) => old.radio != radio || old.desplazamiento != desplazamiento;
+}
+

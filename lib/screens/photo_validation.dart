@@ -15,14 +15,14 @@ class ValidacionScreen extends StatefulWidget {
 }
 
 class _ValidacionScreenState extends State<ValidacionScreen> {
-  final _foto = AppState.instance.episodio.foto;
-  late final _checks = ValidacionService.validar(_foto);
+  final _original = AppState.instance.episodio.fotoOriginal!;
+  late final _validacion = ValidacionService.validar(_original);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: FutureBuilder<List<CheckFoto>>(
-        future: _checks,
+      body: FutureBuilder<ResultadoValidacion>(
+        future: _validacion,
         builder: (context, snap) {
           if (!snap.hasData) {
             return Center(
@@ -37,10 +37,13 @@ class _ValidacionScreenState extends State<ValidacionScreen> {
             );
           }
 
-          final checks = snap.data!;
+          final resultado = snap.data!;
+          final checks = resultado.checks;
           final fallas = checks.where((c) => !c.ok && c.bloquea).toList();
-          final ok = fallas.isEmpty;
-          final conRostro = checks.any((c) => c.id == 'rostro' && !c.ok);
+          final ok = resultado.aprobada;
+          final conRostro = resultado.conRostro;
+          // Se muestra el recorte cuadrado sin EXIF: es lo único que se guarda y se dona.
+          final vista = resultado.foto?.recorte ?? _original;
 
           return PantallaScroll(
             children: [
@@ -57,7 +60,7 @@ class _ValidacionScreenState extends State<ValidacionScreen> {
                 height: 230,
                 child: Stack(
                   children: [
-                    Positioned.fill(child: FotoLesion(bytes: _foto, radio: 26)),
+                    Positioned.fill(child: FotoLesion(bytes: vista, radio: 26)),
                     Positioned(
                       left: 14,
                       top: 14,
@@ -110,7 +113,10 @@ class _ValidacionScreenState extends State<ValidacionScreen> {
                 BotonPrincipal(
                   label: 'Usar esta foto',
                   onPressed: () {
-                    AppState.instance.episodio.conRostro = conRostro;
+                    AppState.instance.episodio
+                      ..foto = resultado.foto!.recorte
+                      ..fotoOriginal = null
+                      ..conRostro = conRostro;
                     Navigator.pushNamed(context, Rutas.cuestionario);
                   },
                 ),
@@ -157,7 +163,16 @@ class _FilaCheck extends StatelessWidget {
                 size: 15, color: color),
           ),
           const SizedBox(width: 12),
-          Expanded(child: Text(check.label, style: AppText.cuerpo(13.5, weight: FontWeight.w500))),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(check.label, style: AppText.cuerpo(13.5, weight: FontWeight.w500)),
+                if (check.detalle != null)
+                  Text(check.detalle!, style: AppText.cuerpo(11, color: AppColors.textoSuave)),
+              ],
+            ),
+          ),
           Text(
             ok ? 'Correcto' : check.problema,
             style: AppText.cuerpo(12, weight: FontWeight.w600, color: color),
