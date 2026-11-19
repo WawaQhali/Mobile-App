@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/db.dart';
 import '../routes.dart';
+import '../services/permissions_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared.dart';
@@ -90,7 +91,7 @@ class _TarjetaPermiso extends StatelessWidget {
             SizedBox(
               height: 44,
               child: OutlinedButton(
-                onPressed: () => AppState.instance.permitir(id),
+                onPressed: () => pedirPermiso(context, id),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.caramelo,
                   side: const BorderSide(color: AppColors.caramelo, width: 1.5),

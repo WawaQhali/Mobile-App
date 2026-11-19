@@ -17,9 +17,18 @@ class DonacionScreen extends StatefulWidget {
 class _DonacionScreenState extends State<DonacionScreen> {
   bool _consiento = false;
 
-  void _seguir(bool donar) {
-    AppState.instance.setDonarFotos(donar);
-    Navigator.pushNamed(context, Rutas.permisos);
+  bool _enviando = false;
+
+  /// Registra la autorización en el backend. Si falla, sigue igual sin donar y avisa.
+  Future<void> _seguir(bool donar) async {
+    if (donar) {
+      setState(() => _enviando = true);
+      final error = await AppState.instance.setDonarFotos(true);
+      if (!mounted) return;
+      setState(() => _enviando = false);
+      if (error != null) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+    }
+    if (mounted) Navigator.pushNamed(context, Rutas.permisos);
   }
 
   @override
@@ -109,7 +118,10 @@ class _DonacionScreenState extends State<DonacionScreen> {
           ),
           const Spacer(),
           const SizedBox(height: 18),
-          BotonPrincipal(label: 'Donar mis fotos', onPressed: _consiento ? () => _seguir(true) : null),
+          BotonPrincipal(
+            label: _enviando ? 'Registrando…' : 'Donar mis fotos',
+            onPressed: _consiento && !_enviando ? () => _seguir(true) : null,
+          ),
           BotonTexto(label: 'Ahora no', onPressed: () => _seguir(false)),
           Text('Puedes cambiar este permiso luego en Ajustes.',
               textAlign: TextAlign.center, style: AppText.cuerpo(11.5, color: AppColors.textoSuave)),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/db.dart';
 import '../services/links.dart';
+import '../services/permissions_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared.dart';
@@ -40,7 +41,7 @@ class AjustesScreen extends StatelessWidget {
                             color: AppColors.verde,
                           )
                         : TextButton(
-                            onPressed: () => state.permitir(p['id'] as String),
+                            onPressed: () => pedirPermiso(context, p['id'] as String),
                             child: const Text('Permitir'),
                           ),
                   ),
@@ -52,7 +53,14 @@ class AjustesScreen extends StatelessWidget {
                 _Fila(
                   titulo: 'Donar mis fotos',
                   subtitulo: 'Cifradas y anónimas, para mejorar el modelo. Si se ve el rostro de tu wawa, esa foto no se dona.',
-                  trailing: Switch(value: state.donarFotos, onChanged: state.setDonarFotos),
+                  trailing: Switch(
+                    value: state.donarFotos,
+                    onChanged: (valor) async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      final error = await state.setDonarFotos(valor);
+                      if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
+                    },
+                  ),
                 ),
                 _Fila(
                   titulo: 'Guardar la última foto',
