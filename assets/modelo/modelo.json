@@ -1,0 +1,9 @@
+{
+  "_nota": "Contrato del modelo, igual que el manifiesto del backend (GET /v1/modelos/manifiesto). Cuando Diego entregue el modelo nuevo: reemplazar modelo.tflite y actualizar este archivo. Lo marcado TODO lo confirma Diego.",
+  "version": "2026-11-14-mobilenetv3",
+  "sha256": "a4b2fed89f5d3ce6537d774372172118abc9c6a8f658c54d15aedd7c98ef1dcf",
+  "entrada": { "ancho": 224, "alto": 224, "canales": 3, "normalizacion": "0_255" },
+  "clases": ["compatible", "no_compatible"],
+  "umbral_confianza": 0.6,
+  "_todo": "Confirmar el orden de las clases, la normalización (el modelo trae una capa Rescaling, por eso 0_255) y el umbral. El archivo actual está dañado (NaN en una capa): la app lo detecta y devuelve indeterminado."
+}
