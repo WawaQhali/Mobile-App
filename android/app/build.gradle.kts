@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "com.wawaqhali.wawa_qhali"
-    compileSdk = flutter.compileSdkVersion
+    // 37: lo exige permission_handler. targetSdk y minSdk no cambian.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

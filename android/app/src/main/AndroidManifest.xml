@@ -1,6 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Google Fonts descarga las tipografías la primera vez -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Permisos que se piden en la pantalla 03 · Permisos -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.CALL_PHONE"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <application
         android:label="Wawa Qhali"
         android:name="${applicationName}"
