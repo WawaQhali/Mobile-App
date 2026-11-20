@@ -166,6 +166,7 @@ class ResultadoScreen extends StatelessWidget {
             builder: (context, _) => switch (e.donacion) {
               'enviando' => const _EstadoDonacion(Icons.lock_clock_outlined, 'Cifrando y donando tu foto…'),
               'enviada' => const _EstadoDonacion(Icons.lock_outline_rounded, 'Foto donada, cifrada y anónima. ¡Gracias!'),
+              'pendiente' => const _EstadoDonacion(Icons.schedule_rounded, 'Tu foto quedó cifrada en el celular y se donará cuando haya conexión.'),
               'fallo' => const _EstadoDonacion(Icons.cloud_off_outlined, 'No se pudo donar la foto esta vez.'),
               _ => const SizedBox.shrink(),
             },

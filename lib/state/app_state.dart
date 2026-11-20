@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../services/api_client.dart';
+import '../services/donation_service.dart';
 import '../services/local_storage.dart';
 import '../services/permissions_service.dart';
 
@@ -56,7 +57,8 @@ class Episodio {
   /// La foto tal como salió de la cámara, solo mientras se valida. Nunca se guarda.
   Uint8List? fotoOriginal;
 
-  /// Donación de esta foto: null (no se intentó), 'enviando', 'enviada', 'fallo'.
+  /// Donación de esta foto: null (no se intentó), 'enviando', 'enviada', 'pendiente'
+  /// (cifrada en la cola, se envía cuando haya conexión) o 'fallo'.
   String? donacion;
   final Map<String, Object> respuestas = {}; // id -> true/false o id de la opción
   String? alarma; // pregunta de riesgo respondida con «Sí» (corta el cuestionario)
@@ -185,8 +187,11 @@ class AppState extends ChangeNotifier {
     try {
       if (valor) {
         await ApiCliente.instancia.autorizar(installationId, versionTextoDonacion);
+        // Se guarda la clave pública ahora, para poder cifrar luego aunque no haya conexión.
+        await DonacionService.clavePublica().then((_) {}, onError: (_) {});
       } else {
         await ApiCliente.instancia.revocar(installationId);
+        await DonacionService.cola.vaciar(); // nada pendiente sale después de revocar
       }
     } on ApiExcepcion {
       return valor
