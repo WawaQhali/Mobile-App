@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -134,6 +135,25 @@ class ApiCliente {
       const Duration(seconds: 30),
     );
     if (r.statusCode != 202) throw _error(r);
+  }
+
+  /// GET /v1/modelos/manifiesto: el modelo publicado (versión, sha256, tamaño, enlace
+  /// temporal y contrato). null si todavía no hay ninguno (404 `sin_modelo`).
+  Future<Map<String, dynamic>?> manifiesto(String installationId) async {
+    final r = await _enviar(
+      _cliente.get(Uri.parse('$baseUrl/v1/modelos/manifiesto'), headers: _cabeceras(installationId)),
+      tiempoNormal,
+    );
+    if (r.statusCode == 404) return null;
+    if (r.statusCode != 200) throw _error(r);
+    return jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+  }
+
+  /// Descarga el .tflite desde el enlace temporal (SAS de 5 minutos) del manifiesto.
+  Future<Uint8List> descargar(String url) async {
+    final r = await _enviar(_cliente.get(Uri.parse(url)), const Duration(minutes: 2));
+    if (r.statusCode != 200) throw ApiExcepcion(r.statusCode, 'descarga');
+    return r.bodyBytes;
   }
 
   /// DELETE /v1/autorizaciones/{id}: revoca y borra las fotos aún no usadas.

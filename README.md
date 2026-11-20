@@ -11,7 +11,7 @@ App Android de orientación ante ronchas en niños de 1 a 4 años. Habla con el 
 | Validación (sección 5.2) | **Medida sobre la foto real:** nitidez (varianza del Laplaciano), luz media, resolución, proporción de piel (YCbCr) y rostro con Google ML Kit. Muestra el valor medido de cada chequeo |
 | Preprocesamiento (sección 5.3) | Orientación aplicada, **sin EXIF** (sin ubicación), recorte central cuadrado de 1024 px, JPEG 85. Solo ese recorte se guarda y se dona |
 | Cuestionario | `assets/preguntas.json` v1: 8 de riesgo (un «Sí» va directo a emergencia) y 6 normales |
-| Modelo | **TFLite en el celular** (`assets/modelo/`). Si la salida no es válida o no llega al umbral, da «indeterminado» |
+| Modelo | **TFLite en el celular**. Si la salida no es válida o no llega al umbral, da «indeterminado». Al abrir la app (como mucho cada 6 h) revisa `GET /v1/modelos/manifiesto`. Si hay una versión publicada nueva, la descarga, verifica el tamaño y el `sha256`, la prueba (sin NaN) y la usa. Si no hay o algo falla, sigue con el modelo anterior o con el de `assets/modelo/` |
 | Severidad | La calcula la app con las reglas de `preguntas.json` y muestra **el porqué** |
 | Recomendaciones | Backend con LLM + RAG (`POST /v1/orientacion`). Si responde 503, no hay internet o tarda más de 20 s, usa el respaldo local |
 | Donación (sección 6) | Si el padre aceptó: la foto se **cifra** (AES-256-GCM + RSA-OAEP-256) y se envía a `POST /v1/donaciones`. Ver «Cómo se cifra la foto» |
@@ -52,7 +52,10 @@ Solo pasa si el padre aceptó donar, la foto es real, no se ve un rostro y el mo
 2. Genera una clave AES de 32 bytes y un nonce de 12 bytes, nuevos en cada donación.
 3. Cifra con **AES-256-GCM**, usando el `installation_id` como dato adicional autenticado (AAD). Así el paquete no se puede reasignar a otra instalación.
 4. Cifra la clave AES con la clave pública del servidor (`GET /v1/claves/publica`) usando **RSA-OAEP-256**, con SHA-256 en el hash y en MGF1, como espera Key Vault. Después borra la clave en claro.
-5. Envía `{v, kid, alg, clave_cifrada, nonce, datos}` a `POST /v1/donaciones`.
+5. Guarda el paquete `{v, kid, alg, clave_cifrada, nonce, datos}` en una **cola local** (como mucho 10) y lo envía a `POST /v1/donaciones`.
+6. Sin conexión, con 429 o con un error del servidor, el paquete queda en la cola (estado «pendiente») y se reintenta al abrir o volver a la app. Un 403 o un 422 se descartan. Al revocar el permiso, la cola se vacía.
+
+La cola guarda el paquete **ya cifrado**: en el celular no queda otra copia en claro de la foto. La clave pública se guarda al autorizar, para poder cifrar sin conexión, y se renueva cada vez que hay conexión.
 
 El backend **no puede** descifrarlo: solo guarda el paquete en la cuarentena. Lo descifra el servicio de reentrenamiento con Key Vault (sección 6.4). Está verificado que lo que cifra la app lo descifra Python con el código de esa sección.
 
@@ -90,7 +93,8 @@ lib/services/
   image_processing.dart          Nitidez, luz, piel, recorte sin EXIF
   validation_service.dart        Validación de la foto + ML Kit
   classifier_service.dart        Modelo TFLite
-  donation_service.dart          Cifrado y envío de la donación
+  donation_service.dart          Cifrado, cola local y envío de la donación
+  model_update_service.dart      Descarga del modelo publicado (manifiesto + sha256)
   location_service.dart          GPS + OpenStreetMap (Overpass, con Nominatim de respaldo)
   permissions_service.dart       Permisos reales de Android
   recommendation_service.dart    Severidad + recomendaciones del backend o locales

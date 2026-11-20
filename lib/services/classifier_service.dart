@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
+import 'model_update_service.dart';
+
 class Prediccion {
   const Prediccion(this.clase, this.confianza, {this.salidaValida = true});
 
@@ -42,7 +44,7 @@ class ContratoModelo {
 
 /// Clasificador de la lesión (US06). Corre en el celular: la foto no sale de ahí.
 abstract class Clasificador {
-  static Clasificador instancia = ClasificadorTflite();
+  static Clasificador instancia = ClasificadorTflite(leerDescargado: ActualizadorModelo.leerInstalado);
 
   String get versionModelo;
   Future<Prediccion> clasificar(Uint8List jpeg);
@@ -82,18 +84,59 @@ Prediccion interpretarSalida(List<double> salida, ContratoModelo contrato) {
   return Prediccion(contrato.clases[mejor], confianza);
 }
 
+/// Ejecuta un .tflite sobre una imagen gris y dice si su salida es válida (sin NaN, suma 1).
+/// Antes de usar un modelo descargado se prueba con esto: así no se instala uno dañado.
+Future<bool> probarModeloTflite(Uint8List modelo, ContratoModelo contrato) async {
+  Interpreter? interprete;
+  try {
+    interprete = Interpreter.fromBuffer(modelo);
+    final entrada = Float32List(contrato.ancho * contrato.alto * 3)..fillRange(0, contrato.ancho * contrato.alto * 3, contrato.normalizar(128));
+    final salida = [List<double>.filled(contrato.clases.length, 0)];
+    interprete.run(entrada.reshape([1, contrato.alto, contrato.ancho, 3]), salida);
+    return interpretarSalida(salida.first, contrato).salidaValida;
+  } catch (error) {
+    debugPrint('Modelo descargado: no se pudo probar ($error)');
+    return false;
+  } finally {
+    interprete?.close();
+  }
+}
+
 class ClasificadorTflite implements Clasificador {
+  /// Lee el modelo descargado (ver [ActualizadorModelo]); si no hay, usa el del APK.
+  ClasificadorTflite({this.leerDescargado});
+
+  final Future<(Uint8List, Map<String, dynamic>)?> Function()? leerDescargado;
+
   ContratoModelo? _contrato;
   Interpreter? _interprete;
+  bool _recargar = false;
 
   @override
   String get versionModelo => _contrato?.version ?? 'sin-modelo';
 
+  /// Llega un modelo nuevo: se carga en la próxima clasificación.
+  void recargar() => _recargar = true;
+
   Future<void> _cargar() async {
-    if (_interprete != null) return;
+    if (_interprete != null && !_recargar) return;
+    _interprete?.close();
+    _interprete = null;
+    _recargar = false;
+    final opciones = InterpreterOptions()..threads = 2;
+    try {
+      final descargado = await leerDescargado?.call();
+      if (descargado != null) {
+        _contrato = ContratoModelo.desdeJson(descargado.$2);
+        _interprete = Interpreter.fromBuffer(descargado.$1, options: opciones);
+        return;
+      }
+    } catch (error) {
+      debugPrint('Modelo descargado: no se pudo cargar, se usa el del APK ($error)');
+    }
     final json = await rootBundle.loadString('assets/modelo/modelo.json');
     _contrato = ContratoModelo.desdeJson(jsonDecode(json) as Map<String, dynamic>);
-    _interprete = await Interpreter.fromAsset('assets/modelo/modelo.tflite', options: InterpreterOptions()..threads = 2);
+    _interprete = await Interpreter.fromAsset('assets/modelo/modelo.tflite', options: opciones);
   }
 
   @override
