@@ -6,6 +6,7 @@ import '../services/api_client.dart';
 import '../services/donation_service.dart';
 import '../services/local_storage.dart';
 import '../services/permissions_service.dart';
+import '../services/zona_principal.dart';
 
 /// Lo que devuelve el clasificador (el modelo corre en el celular).
 class ResultadoAnalisis {
@@ -65,6 +66,9 @@ class Episodio {
   bool conRostro = false; // se ve el rostro del menor: la foto no se dona
   bool get donable => foto != null && !conRostro;
   ResultadoAnalisis? resultado;
+
+  /// Zona de piel que evaluó el modelo (si se veían varias partes del cuerpo). Solo en memoria.
+  ZonaPrincipal? zona;
   Orientacion? orientacion;
   final DateTime fecha;
 

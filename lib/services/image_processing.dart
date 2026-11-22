@@ -119,12 +119,16 @@ double luminanciaMedia(img.Image imagen) {
 double proporcionPiel(img.Image imagen) {
   var piel = 0;
   for (final p in imagen) {
-    final r = p.r.toDouble(), g = p.g.toDouble(), b = p.b.toDouble();
-    final cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
-    final cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
-    if (cb >= 77 && cb <= 127 && cr >= 133 && cr <= 180) piel++;
+    if (esPiel(p.r, p.g, p.b)) piel++;
   }
   return piel / (imagen.width * imagen.height);
+}
+
+/// ¿El color (0..255) es de piel? También la usa la zona principal (nivel 1).
+bool esPiel(num r, num g, num b) {
+  final cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+  final cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+  return cb >= 77 && cb <= 127 && cr >= 133 && cr <= 180;
 }
 
 /// Foto de muestra para cuando no hay cámara (emulador sin cámara, pruebas).

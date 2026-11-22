@@ -7,6 +7,7 @@ import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/recommendations.dart';
 import '../widgets/shared.dart';
+import '../widgets/zona_evaluada.dart';
 
 /// Colores e ícono según la clase que devuelve el modelo.
 ({Color fondo, Color texto, IconData icono}) estiloClase(String clase) => switch (clase) {
@@ -104,6 +105,10 @@ class ResultadoScreen extends StatelessWidget {
               ],
             ),
           ),
+          if (e.foto != null && e.zona != null && e.zona!.tieneContorno) ...[
+            const SizedBox(height: 12),
+            ZonaEvaluada(foto: e.foto!, zona: e.zona!),
+          ],
           const SizedBox(height: 12),
           Tarjeta(
             color: AppColors.arena,
