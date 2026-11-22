@@ -4,6 +4,7 @@ import '../routes.dart';
 import '../services/classifier_service.dart';
 import '../services/donation_service.dart';
 import '../services/recommendation_service.dart';
+import '../services/zona_principal.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared.dart';
@@ -35,8 +36,11 @@ class _AnalisisScreenState extends State<AnalisisScreen> with SingleTickerProvid
 
   Future<void> _analizar() async {
     final e = AppState.instance.episodio;
-    // Modelo TFLite en el celular sobre el recorte de 1024 px.
-    final prediccion = await Clasificador.instancia.clasificar(e.foto!);
+    // Si se ven varias partes del cuerpo, se evalúa solo la zona principal (su recorte).
+    final (zona, entrada) = await zonaParaClasificar(e.foto!);
+    e.zona = zona;
+    // Modelo TFLite en el celular.
+    final prediccion = await Clasificador.instancia.clasificar(entrada);
     final resultado = ResultadoAnalisis(clase: prediccion.clase, confianza: prediccion.confianza);
     if (mounted) setState(() => _buscandoRecomendaciones = true);
     // Severidad en la app; recomendaciones del backend (LLM + RAG) o, si falla, locales.
