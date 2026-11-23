@@ -190,6 +190,8 @@ class DonacionService {
             'respuestas': e.respuestas,
             'version_modelo': Clasificador.instancia.versionModelo,
             'version_cuestionario': Cuestionario.instancia.version,
+            if (e.edadAnios != null) 'edad_anios': e.edadAnios,
+            if (e.sexo != null) 'sexo': e.sexo,
           },
         },
       );

@@ -37,6 +37,8 @@ class RecomendacionService {
         confianza: resultado?.confianza ?? 0,
         versionCuestionario: Cuestionario.instancia.version,
         respuestas: episodio.respuestas,
+        edadAnios: episodio.edadAnios,
+        sexo: episodio.sexo,
       );
       return Orientacion(severidad: severidad, recomendaciones: r.recomendaciones, fuentes: r.fuentes, origen: 'rag');
     } on ApiExcepcion {

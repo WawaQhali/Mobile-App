@@ -10,6 +10,7 @@ import 'package:http/testing.dart';
 import 'package:wawa_qhali/app.dart';
 import 'package:wawa_qhali/data/cuestionario.dart';
 import 'package:wawa_qhali/data/db.dart';
+import 'package:wawa_qhali/screens/child_data.dart';
 import 'package:wawa_qhali/services/api_client.dart';
 import 'package:wawa_qhali/services/classifier_service.dart';
 import 'package:wawa_qhali/services/image_processing.dart';
@@ -61,7 +62,22 @@ Future<void> hastaCuestionario(WidgetTester tester) async {
   await tocar(tester, find.text('Usar esta foto'));
   tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger)).clearSnackBars();
   await tester.pumpAndSettle();
+
+  // Antes del cuestionario: sexo y edad de la wawa (solo 1 a 4 años).
+  expect(find.text('Cuéntanos sobre tu wawa'), findsOneWidget);
+  await responderDatosNino(tester);
   expect(find.text('Pregunta 1 de 14'), findsOneWidget);
+}
+
+/// Niña de 3 años: la rueda empieza en «1 año» y se baja dos posiciones.
+Future<void> responderDatosNino(WidgetTester tester) async {
+  final continuar = tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Continuar'));
+  expect(continuar.onPressed, isNull, reason: 'sin elegir niña o niño no se puede seguir');
+  await tocar(tester, find.text('Niña'));
+  await tester.drag(find.byType(ListWheelScrollView), const Offset(0, -96));
+  await tester.pumpAndSettle();
+  await tocar(tester, find.text('Continuar'));
+  await tester.pumpAndSettle();
 }
 
 /// Las 8 de riesgo con «No» y las 6 normales (severidad leve).
@@ -179,6 +195,8 @@ void main() {
     expect(enviado['version_cuestionario'], 'v1');
     expect(enviado['respuestas']['dificultad_respirar'], false);
     expect(enviado['respuestas']['tiempo_evolucion'], 'menos_24h');
+    expect(enviado['edad_anios'], 3);
+    expect(enviado['sexo'], 'femenino');
     expect(backend.peticiones.last.headers['X-Installation-Id'], AppState.instance.installationId);
 
     await tocar(tester, find.text('Ver resultado'));
@@ -188,7 +206,11 @@ void main() {
     expect(find.textContaining('Según guías clínicas validadas: guia de prueba'), findsOneWidget);
 
     await tocar(tester, find.text('Resumen para el médico'));
-    expect(find.text('Síntomas'), findsOneWidget);
+    expect(find.text('Niña · 3 años'), findsOneWidget);
+    // Una sola lista de respuestas, sin separar signos de alarma de síntomas.
+    expect(find.text('Respuestas'), findsOneWidget);
+    expect(find.text('Signos de alarma'), findsNothing);
+    expect(find.text('Síntomas'), findsNothing);
     expect(find.text('¿Dónde están las ronchas?'), findsOneWidget);
     expect(find.text('En una sola parte del cuerpo'), findsOneWidget);
     // El resumen también muestra las recomendaciones (la pantalla de resultado sigue debajo).
@@ -203,6 +225,32 @@ void main() {
     expect(ultimo.orientacion!.fuentes, ['guia-de-prueba#2']);
     expect(ultimo.respuestas['extension'], 'una_zona');
     expect(ultimo.foto, isNotNull);
+  });
+
+  testWidgets('las preguntas no dicen si son signo de alarma o síntoma', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    await hastaCuestionario(tester);
+    for (var i = 0; i < 14; i++) {
+      expect(find.text('Signo de alarma'), findsNothing);
+      expect(find.text('Síntomas'), findsNothing);
+      expect(find.textContaining('te diremos que vayas a emergencia'), findsNothing);
+      if (i < 13) await tocar(tester, find.text(i < 8 || i == 13 ? 'No' : Cuestionario.instancia.preguntas[i].botones.first.$1));
+    }
+  });
+
+  testWidgets('la rueda de edad solo tiene de 1 a 4 años', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    await tester.pumpWidget(MaterialApp(home: const DatosNinoScreen(), routes: {'/cuestionario': (_) => const SizedBox()}));
+    await tester.pumpAndSettle();
+    // Se intenta pasar de 4 y de 1: la rueda se detiene en los extremos.
+    await tester.drag(find.byType(ListWheelScrollView), const Offset(0, -1000));
+    await tester.pumpAndSettle();
+    await tocar(tester, find.text('Niño'));
+    await tocar(tester, find.text('Continuar'));
+    expect(AppState.instance.episodio.edadAnios, 4);
+    expect(AppState.instance.episodio.sexo, 'masculino');
+    final rueda = tester.widget<ListWheelScrollView>(find.byType(ListWheelScrollView));
+    expect((rueda.childDelegate as ListWheelChildListDelegate).children, hasLength(4));
   });
 
   testWidgets('si el modelo no está seguro: indeterminado, severidad moderada y el porqué', (tester) async {

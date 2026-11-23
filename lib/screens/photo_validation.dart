@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../widgets/shared.dart';
 
 /// 06 · Validación automática de la foto (US16) y 06b · con errores.
+/// Revisa resolución, piel y rostro. Luz y nitidez ya se revisaron en la cámara.
 class ValidacionScreen extends StatefulWidget {
   const ValidacionScreen({super.key});
 
@@ -16,7 +17,8 @@ class ValidacionScreen extends StatefulWidget {
 
 class _ValidacionScreenState extends State<ValidacionScreen> {
   final _original = AppState.instance.episodio.fotoOriginal!;
-  late final _validacion = ValidacionService.validar(_original);
+  // La cámara ya revisó luz y nitidez y dejó la foto procesada: aquí no se repite.
+  late final _validacion = ValidacionService.validar(_original, procesada: AppState.instance.episodio.procesada);
 
   @override
   Widget build(BuildContext context) {
@@ -116,8 +118,9 @@ class _ValidacionScreenState extends State<ValidacionScreen> {
                     AppState.instance.episodio
                       ..foto = resultado.foto!.recorte
                       ..fotoOriginal = null
+                      ..procesada = null
                       ..conRostro = conRostro;
-                    Navigator.pushNamed(context, Rutas.cuestionario);
+                    Navigator.pushNamed(context, Rutas.datosNino);
                   },
                 ),
                 const SizedBox(height: 10),

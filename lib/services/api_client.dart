@@ -77,6 +77,8 @@ class ApiCliente {
     required String versionCuestionario,
     required Map<String, Object> respuestas,
     String? textoLibre,
+    int? edadAnios,
+    String? sexo,
   }) async {
     final r = await _enviar(
       _cliente.post(
@@ -89,6 +91,8 @@ class ApiCliente {
           'version_cuestionario': versionCuestionario,
           'respuestas': respuestas,
           if (textoLibre != null && textoLibre.isNotEmpty) 'texto_libre': textoLibre,
+          'edad_anios': ?edadAnios,
+          'sexo': ?sexo,
         }),
       ),
       tiempoOrientacion,

@@ -5,6 +5,7 @@ abstract final class Rutas {
   static const home = '/home';
   static const camara = '/camara';
   static const validacion = '/validacion';
+  static const datosNino = '/datos-nino';
   static const cuestionario = '/cuestionario';
   static const emergencia = '/emergencia';
   static const analisis = '/analisis';
