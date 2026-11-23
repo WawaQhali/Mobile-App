@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mismo crema que AppColors.crema (fondo de la app) -->
+    <color name="wawa_crema">#F6EFE4</color>
+</resources>
