@@ -9,6 +9,9 @@ import '../widgets/shared.dart';
 /// 07 · Cuestionario, paso 2 (US04, US05): `assets/preguntas.json` v1, una por pantalla.
 /// Primero las 8 de riesgo (antes del modelo): un «Sí» va directo a emergencia.
 /// Luego las 6 normales, que deciden la severidad entre leve y moderada.
+/// En pantalla NO se distingue el tipo (sin «Signo de alarma» ni «Síntomas», y el «Sí»
+/// se ve igual en todas): leerlo puede asustar al papá o la mamá. El tipo solo se usa
+/// por dentro, para mandar a emergencia y calcular la severidad.
 class CuestionarioScreen extends StatefulWidget {
   const CuestionarioScreen({super.key});
 
@@ -50,7 +53,6 @@ class _CuestionarioScreenState extends State<CuestionarioScreen> {
   @override
   Widget build(BuildContext context) {
     final pregunta = _preguntas[_i];
-    final alarma = pregunta.esRiesgo;
     final elegida = _episodio.respuestas[pregunta.id];
 
     return PopScope(
@@ -63,24 +65,9 @@ class _CuestionarioScreenState extends State<CuestionarioScreen> {
           children: [
             EncabezadoPaso(paso: 2, nombre: 'Preguntas', onVolver: _atras),
             const SizedBox(height: 22),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Pregunta ${_i + 1} de ${_preguntas.length}',
-                    style: AppText.cuerpo(12.5, weight: FontWeight.w600, color: AppColors.textoSuave),
-                  ),
-                ),
-                if (alarma)
-                  const Pastilla(
-                    texto: 'Signo de alarma',
-                    icono: Icons.warning_amber_rounded,
-                    fondo: AppColors.terracotaFondo,
-                    color: AppColors.terracota,
-                  )
-                else
-                  const Pastilla(texto: 'Síntomas', fondo: AppColors.arena, color: AppColors.carameloOscuro),
-              ],
+            Text(
+              'Pregunta ${_i + 1} de ${_preguntas.length}',
+              style: AppText.cuerpo(12.5, weight: FontWeight.w600, color: AppColors.textoSuave),
             ),
             const SizedBox(height: 10),
             ClipRRect(
@@ -94,31 +81,10 @@ class _CuestionarioScreenState extends State<CuestionarioScreen> {
             const SizedBox(height: 30),
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 220),
-              child: Column(
+              child: Text(
+                pregunta.texto,
                 key: ValueKey(_i),
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(pregunta.texto, style: AppText.titulo(pregunta.texto.length > 55 ? 23 : 27)),
-                  if (alarma) ...[
-                    const SizedBox(height: 12),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.only(top: 1),
-                          child: Icon(Icons.info_outline_rounded, size: 17, color: AppColors.terracota),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Si respondes «Sí», te diremos que vayas a emergencia.',
-                            style: AppText.cuerpo(13, color: AppColors.textoSuave),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
+                style: AppText.titulo(pregunta.texto.length > 55 ? 23 : 27),
               ),
             ),
             const Spacer(),
@@ -127,7 +93,6 @@ class _CuestionarioScreenState extends State<CuestionarioScreen> {
               _BotonOpcion(
                 label: label,
                 elegida: elegida == valor,
-                alarma: alarma && valor == true,
                 onTap: () => _responder(pregunta, valor),
               ),
               const SizedBox(height: 12),
@@ -140,25 +105,16 @@ class _CuestionarioScreenState extends State<CuestionarioScreen> {
 }
 
 class _BotonOpcion extends StatelessWidget {
-  const _BotonOpcion({required this.label, required this.elegida, required this.alarma, required this.onTap});
+  const _BotonOpcion({required this.label, required this.elegida, required this.onTap});
 
   final String label;
   final bool elegida;
-  final bool alarma;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final color = elegida
-        ? AppColors.sobreAccion
-        : alarma
-        ? AppColors.terracota
-        : AppColors.tinta;
-    final borde = elegida
-        ? AppColors.tinta
-        : alarma
-        ? AppColors.terracotaBorde
-        : AppColors.borde;
+    final color = elegida ? AppColors.sobreAccion : AppColors.tinta;
+    final borde = elegida ? AppColors.tinta : AppColors.borde;
 
     return SizedBox(
       height: 60,
