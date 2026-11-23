@@ -110,14 +110,21 @@ class CentrosService {
 
   static double _redondear(double v) => (v * 1000).round() / 1000;
 
+  /// Dos salidas: primero los lugares con emergencia, **sin tope**, y luego clínicas y
+  /// consultorios con tope. Overpass devuelve en orden de id, no de distancia: con un tope
+  /// común de 100, los consultorios llenaban la lista y se perdía el hospital más cercano
+  /// (salía uno antiguo y lejano, como el Hospital del Niño).
   static String consulta(double lat, double lng) {
     final cerca = 'around:$radioMetros,$lat,$lng';
-    return '[out:json][timeout:30];('
-        'nwr[amenity=hospital]($cerca);'
-        'nwr[amenity=clinic]($cerca);'
+    return '[out:json][timeout:30];'
+        '(nwr[amenity=hospital]($cerca);'
+        'nwr[healthcare=hospital]($cerca);'
+        'nwr[amenity=clinic][emergency=yes]($cerca);'
+        ');out center tags;'
+        '(nwr[amenity=clinic]($cerca);'
         'nwr[amenity=doctors]($cerca);'
         'nwr[healthcare=centre]($cerca);'
-        ');out center tags 100;';
+        ');out center tags 150;';
   }
 
   Future<List<CentroSalud>> cercanos(Coordenadas origen) async {
@@ -166,18 +173,23 @@ class CentrosService {
 
   static const urlNominatim = 'https://nominatim.openstreetmap.org/search';
 
-  /// Respaldo: Nominatim, dentro de un cuadro de ~6 km alrededor. Dos consultas
-  /// seguidas, separadas 1 s (política de uso de Nominatim).
+  /// Respaldo: Nominatim. Ordena por importancia, no por distancia, y tiene tope: por eso
+  /// los hospitales se buscan primero en un cuadro de ~2 km (para no perder el más cercano
+  /// detrás de los grandes y conocidos) y luego en el de ~6 km. Consultas separadas 1 s
+  /// (política de uso de Nominatim).
   Future<List<CentroSalud>> _nominatim(double lat, double lng, Coordenadas origen) async {
-    final dLat = radioMetros / 111000, dLng = radioMetros / (111000 * cos(lat * pi / 180));
-    final caja = '${lng - dLng},${lat + dLat},${lng + dLng},${lat - dLat}';
+    String caja(int metros) {
+      final dLat = metros / 111000, dLng = metros / (111000 * cos(lat * pi / 180));
+      return '${lng - dLng},${lat + dLat},${lng + dLng},${lat - dLat}';
+    }
+
     final elementos = <Map<String, dynamic>>[];
-    for (final (i, texto) in ['hospital', 'clinica'].indexed) {
+    for (final (i, (texto, metros)) in [('hospital', 2000), ('hospital', radioMetros), ('clinica', radioMetros)].indexed) {
       if (i > 0) await Future<void>.delayed(const Duration(milliseconds: 1100));
       final uri = Uri.parse(urlNominatim).replace(queryParameters: {
         'q': texto,
         'format': 'jsonv2',
-        'viewbox': caja,
+        'viewbox': caja(metros),
         'bounded': '1',
         'limit': '40',
         'extratags': '1',
@@ -212,9 +224,11 @@ class CentrosService {
       if (nombre == null || nombre.isEmpty || lat == null || lng == null) continue;
       if (!vistos.add(nombre.toLowerCase())) continue;
       final hospital = tags['amenity'] == 'hospital' || tags['healthcare'] == 'hospital';
+      // Hospital (salvo que diga que no tiene emergencia) o clínica que dice tenerla.
+      final conEmergencia = hospital ? tags['emergency'] != 'no' : tags['emergency'] == 'yes';
       centros.add(CentroSalud(
         nombre: nombre,
-        tipo: hospital && tags['emergency'] != 'no' ? 'emergencia' : 'centro',
+        tipo: conEmergencia ? 'emergencia' : 'centro',
         lat: lat,
         lng: lng,
         distanciaKm: distanciaKm(origen, (lat: lat, lng: lng)),

@@ -139,6 +139,25 @@ void main() {
       expect(centros[1].distanciaTexto, '1,1 km');
     });
 
+    test('los hospitales se piden aparte y sin tope (el tope dejaba fuera al más cercano)', () {
+      final q = CentrosService.consulta(-12.08, -76.941);
+      final salidas = q.split('out center tags');
+      expect(salidas, hasLength(3)); // dos salidas
+      expect(salidas[0], contains('amenity=hospital'));
+      expect(salidas[0], isNot(contains('amenity=doctors')));
+      expect(salidas[1], startsWith(';')); // la de hospitales, sin número de tope
+    });
+
+    test('una clínica con emergency=yes cuenta como emergencia', () {
+      final centros = CentrosService.interpretar({
+        'elements': [
+          {'lat': -12.0810, 'lon': -76.9400, 'tags': {'amenity': 'clinic', 'emergency': 'yes', 'name': 'Clínica con emergencia'}},
+          {'lat': -12.0820, 'lon': -76.9400, 'tags': {'amenity': 'clinic', 'name': 'Clínica sin emergencia'}},
+        ],
+      }, aqui);
+      expect(centros.map((c) => c.tipo), ['emergencia', 'centro']);
+    });
+
     test('la consulta redondea la ubicación (~100 m) antes de enviarla', () async {
       late String enviado;
       final servicio = CentrosService(
