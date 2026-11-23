@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -42,18 +43,94 @@ void main() {
     expect(r.aprobada, isTrue, reason: r.checks.map((c) => '${c.id}: ${c.detalle}').join('\n'));
   });
 
-  test('la misma foto desenfocada falla en nitidez', () async {
-    final borrosa = img.gaussianBlur(img.decodeJpg(fotoDeMuestra())!, radius: 12);
-    final r = await validar(jpeg(borrosa));
-    expect(check(r, 'nitidez').ok, isFalse, reason: check(r, 'nitidez').detalle);
-    expect(r.aprobada, isFalse);
+  test('la validación ya no revisa luz ni nitidez (se revisan en la cámara)', () async {
+    final r = await validar(fotoDeMuestra());
+    expect(r.checks.map((c) => c.id), ['resolucion', 'piel', 'rostro']);
   });
 
-  test('una foto oscura falla en iluminación', () async {
+  // --- Cámara: luz y nitidez de la foto tomada -----------------------------------------
+
+  Future<AvisoCaptura?> revisar(Uint8List bytes) async => ValidacionService.revisarFoto(await procesarFoto(bytes));
+
+  test('una foto nítida y bien iluminada pasa la revisión de la cámara', () async {
+    expect(await revisar(fotoDeMuestra()), isNull);
+  });
+
+  test('la misma foto desenfocada: aviso de nitidez', () async {
+    final borrosa = img.gaussianBlur(img.decodeJpg(fotoDeMuestra())!, radius: 12);
+    final aviso = await revisar(jpeg(borrosa));
+    expect(aviso?.id, 'borrosa');
+    expect(aviso?.mensaje, contains('nítido'));
+  });
+
+  test('una foto oscura: aviso de ir a un lugar más iluminado', () async {
     final oscura = img.adjustColor(img.decodeJpg(fotoDeMuestra())!, brightness: 0.2);
-    final r = await validar(jpeg(oscura));
-    expect(check(r, 'iluminacion').ok, isFalse, reason: check(r, 'iluminacion').detalle);
-    expect(check(r, 'iluminacion').problema, 'Muy oscura');
+    final aviso = await revisar(jpeg(oscura));
+    expect(aviso?.id, 'oscura');
+    expect(aviso?.problema, 'Muy oscura');
+    expect(aviso?.mensaje, contains('lugar más iluminado'));
+  });
+
+  test('una foto quemada: aviso de demasiada luz', () async {
+    final aviso = await revisar(jpeg(colorSolido(1200, 250, 248, 245)));
+    expect(aviso?.id, 'mucha_luz');
+  });
+
+  test('umbral de luminosidad: justo en el mínimo pasa, debajo no', () {
+    final u = UmbralesFoto.desdeDb(Db.instance.foto);
+    expect(ValidacionService.revisarCaptura(nitidez: 999, luminancia: u.luminanciaMinima), isNull);
+    expect(ValidacionService.revisarCaptura(nitidez: 999, luminancia: u.luminanciaMinima - 1)?.id, 'oscura');
+    expect(ValidacionService.revisarCaptura(nitidez: 999, luminancia: u.luminanciaMaxima + 1)?.id, 'mucha_luz');
+    // Con poca luz se avisa la luz, aunque también esté borrosa.
+    expect(ValidacionService.revisarCaptura(nitidez: 0, luminancia: 10)?.id, 'oscura');
+  });
+
+  test('un archivo que no se puede leer: aviso en la cámara', () async {
+    expect((await revisar(Uint8List.fromList([1, 2, 3])))?.id, 'ilegible');
+  });
+
+  // --- Cámara: cuadros en vivo (plano Y) ----------------------------------------------
+
+  /// Plano Y de un cuadro de 640 × 480 con relleno al final de cada fila, como en Android.
+  Uint8List planoY(int Function(int x, int y) valor, {int ancho = 640, int alto = 480, int fila = 704}) {
+    final bytes = Uint8List(fila * alto);
+    for (var y = 0; y < alto; y++) {
+      for (var x = 0; x < ancho; x++) {
+        bytes[y * fila + x] = valor(x, y).clamp(0, 255);
+      }
+    }
+    return bytes;
+  }
+
+  AvisoCaptura? enVivo(Uint8List y) {
+    final m = metricasDeCuadro(y, ancho: 640, alto: 480, bytesPorFila: 704);
+    return ValidacionService.revisarCaptura(nitidez: m.nitidez, luminancia: m.luminancia);
+  }
+
+  test('cuadro en vivo con textura y buena luz: círculo verde', () {
+    final azar = Random(3);
+    expect(enVivo(planoY((x, y) => 150 + azar.nextInt(40) - 20)), isNull);
+  });
+
+  test('cuadro en vivo oscuro: círculo rojo por luz', () {
+    final azar = Random(3);
+    expect(enVivo(planoY((x, y) => 25 + azar.nextInt(20) - 10))?.id, 'oscura');
+  });
+
+  test('cuadro en vivo liso (desenfocado): círculo rojo por nitidez', () {
+    expect(enVivo(planoY((x, y) => 120 + x ~/ 40))?.id, 'borrosa');
+  });
+
+  test('en vivo se mide solo el cuadrado central', () {
+    // Bordes laterales negros: fuera del cuadrado central, no cuentan.
+    final azar = Random(3);
+    final m = metricasDeCuadro(
+      planoY((x, y) => x < 80 || x >= 560 ? 0 : 150 + azar.nextInt(10)),
+      ancho: 640,
+      alto: 480,
+      bytesPorFila: 704,
+    );
+    expect(m.luminancia, greaterThan(140));
   });
 
   test('una foto chica falla en resolución', () async {

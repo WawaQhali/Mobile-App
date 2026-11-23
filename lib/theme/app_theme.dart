@@ -33,6 +33,10 @@ abstract final class AppColors {
   static const terracotaTexto = Color(0xFF8A2E20);
   static const terracotaBorde = Color(0xFFEBC5B8);
 
+  // Círculo de la cámara, sobre la vista previa oscura: luz y nitidez bien / mal.
+  static const capturaBien = Color(0xFF3FB866);
+  static const capturaMal = Color(0xFFC63A2D); // texto blanco encima: 5.2:1
+
   static const deshabilitado = Color(0xFFE4D5BF);
   static const deshabilitadoTexto = Color(0xFF5E5145);
 }

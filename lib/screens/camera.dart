@@ -8,13 +8,18 @@ import '../data/db.dart';
 import '../routes.dart';
 import '../services/image_processing.dart';
 import '../services/permissions_service.dart';
+import '../services/validation_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/shared.dart';
 import '../widgets/illustrations.dart';
 
-/// 05 · Captura, paso 1 (US02, US03).
+/// 05 · Captura, paso 1 (US02, US03, US16).
 /// Vista previa en vivo de la cámara trasera: el círculo marca dónde centrar el habón.
+/// La luz y la nitidez se revisan aquí, no en la pantalla siguiente:
+/// - en vivo, sobre la vista previa: el círculo se pone verde si están bien y rojo si
+///   no, con el aviso de qué hacer (p. ej. «ve a un lugar más iluminado»);
+/// - otra vez sobre la foto tomada (o la de la galería): si no pasa, no se avanza.
 class CamaraScreen extends StatefulWidget {
   const CamaraScreen({super.key});
 
@@ -26,6 +31,38 @@ class _CamaraScreenState extends State<CamaraScreen> with WidgetsBindingObserver
   bool _abriendo = false;
   CameraController? _camara;
   bool _sinCamara = false; // sin cámara usable (emulador, web): cámara del sistema o foto de muestra
+
+  /// Estado del círculo: null = todavía no se sabe (blanco), true = verde, false = rojo.
+  bool? _calidadOk;
+  AvisoCaptura? _aviso; // qué corregir cuando el círculo está rojo
+
+  // Análisis en vivo: un cuadro cada [_cadaCuadro], con las métricas suavizadas.
+  static const _cadaCuadro = Duration(milliseconds: 400);
+  DateTime _ultimoCuadro = DateTime(0);
+  double? _nitidezVivo, _luzVivo;
+
+  /// Después de una foto rechazada, su aviso se mantiene un momento aunque la
+  /// vista previa ya se vea bien, para que se alcance a leer.
+  DateTime _avisoFotoHasta = DateTime(0);
+
+  /// Mientras se toma la foto o se está en otra pantalla, los cuadros se ignoran.
+  /// El análisis NO se apaga y se vuelve a prender: en algunos celulares (Moto G85)
+  /// volver a prenderlo pide un flujo más a la cámara y falla con
+  /// «No supported surface combination».
+  bool _ignorarCuadros = false;
+
+  /// El plugin de cámara de Android es UNO para toda la app: si se abre una cámara
+  /// mientras otra todavía se cierra, o dos a la vez, se juntan sus flujos y el
+  /// celular falla («No supported surface combination»). Por eso se abre una sola
+  /// vez ([_abriendoCamara]) y solo después de que terminó de cerrarse la anterior,
+  /// aunque fuera de otra pantalla de cámara ([_cierrePendiente]).
+  static Future<void> _cierrePendiente = Future.value();
+  bool _abriendoCamara = false;
+
+  void _cerrarCamara(CameraController c) {
+    final anterior = _cierrePendiente;
+    _cierrePendiente = anterior.then((_) => c.dispose()).catchError((Object _) {});
+  }
 
   bool get _permitido => AppState.instance.permisos['camara'] ?? false;
 
@@ -41,7 +78,8 @@ class _CamaraScreenState extends State<CamaraScreen> with WidgetsBindingObserver
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     AppState.instance.removeListener(_alCambiarPermisos);
-    _camara?.dispose();
+    final c = _camara;
+    if (c != null) _cerrarCamara(c);
     super.dispose();
   }
 
@@ -51,24 +89,63 @@ class _CamaraScreenState extends State<CamaraScreen> with WidgetsBindingObserver
 
   /// Vista previa en vivo con la cámara trasera, sin flash y sin zoom (sección 5.1).
   Future<void> _iniciarCamara() async {
-    if (!_permitido || _camara != null) return;
+    if (!_permitido || _camara != null || _abriendoCamara) return;
+    _abriendoCamara = true;
     try {
+      await _cierrePendiente;
+      if (!mounted) return;
       final camaras = await availableCameras();
       final trasera = camaras.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.back,
         orElse: () => camaras.first,
       );
-      final c = CameraController(trasera, ResolutionPreset.veryHigh, enableAudio: false, imageFormatGroup: ImageFormatGroup.jpeg);
+      // YUV420: el análisis en vivo usa el plano Y (luminancia). takePicture sigue dando JPEG.
+      final c = CameraController(trasera, ResolutionPreset.veryHigh, enableAudio: false, imageFormatGroup: ImageFormatGroup.yuv420);
       await c.initialize();
       await c.setFlashMode(FlashMode.off);
       if (!mounted || _camara != null) {
-        await c.dispose();
+        _cerrarCamara(c);
         return;
       }
       setState(() => _camara = c);
+      await _empezarAnalisis(c);
     } catch (_) {
       if (mounted) setState(() => _sinCamara = true);
+    } finally {
+      _abriendoCamara = false;
     }
+  }
+
+  // --- Luz y nitidez en vivo ----------------------------------------------------------
+
+  /// Se llama UNA vez por cámara abierta (ver [_ignorarCuadros]).
+  Future<void> _empezarAnalisis(CameraController c) async {
+    if (!c.value.isInitialized || c.value.isStreamingImages) return;
+    try {
+      await c.startImageStream(_alCuadro);
+    } catch (_) {
+      // Sin cuadros en vivo: el círculo queda blanco y se revisa solo la foto tomada.
+    }
+  }
+
+  void _alCuadro(CameraImage cuadro) {
+    final ahora = DateTime.now();
+    if (!mounted || _ignorarCuadros || ahora.difference(_ultimoCuadro) < _cadaCuadro) return;
+    _ultimoCuadro = ahora;
+    final grupo = cuadro.format.group;
+    if (grupo != ImageFormatGroup.yuv420 && grupo != ImageFormatGroup.nv21) return;
+    final y = cuadro.planes.first;
+    final m = metricasDeCuadro(y.bytes, ancho: cuadro.width, alto: cuadro.height, bytesPorFila: y.bytesPerRow);
+    // Promedio con el cuadro anterior: evita que el círculo parpadee.
+    _nitidezVivo = _nitidezVivo == null ? m.nitidez : (_nitidezVivo! + m.nitidez) / 2;
+    _luzVivo = _luzVivo == null ? m.luminancia : (_luzVivo! + m.luminancia) / 2;
+    if (ahora.isBefore(_avisoFotoHasta)) return;
+    final aviso = ValidacionService.revisarCaptura(nitidez: _nitidezVivo!, luminancia: _luzVivo!);
+    if (aviso?.id == _aviso?.id && _calidadOk == (aviso == null)) return;
+    setState(() {
+      _calidadOk = aviso == null;
+      _aviso = aviso;
+    });
   }
 
   @override
@@ -76,20 +153,45 @@ class _CamaraScreenState extends State<CamaraScreen> with WidgetsBindingObserver
     final c = _camara;
     if (estado == AppLifecycleState.inactive || estado == AppLifecycleState.paused) {
       if (c != null) {
-        setState(() => _camara = null);
-        c.dispose();
+        setState(() {
+          _camara = null;
+          _calidadOk = null;
+          _aviso = null;
+          _nitidezVivo = _luzVivo = null;
+        });
+        _cerrarCamara(c);
       }
     } else if (estado == AppLifecycleState.resumed) {
       _iniciarCamara();
     }
   }
 
+  /// Revisa la luz y la nitidez de la foto tomada. Si no pasan, se queda aquí con el
+  /// círculo en rojo y el aviso; si pasan, sigue a la validación (resolución, piel, rostro).
   Future<void> _seguir(Uint8List bytes) async {
-    AppState.instance.nuevoEpisodio(bytes);
+    final messenger = ScaffoldMessenger.of(context);
+    final foto = await procesarFoto(bytes);
+    final aviso = ValidacionService.revisarFoto(foto);
+    if (!mounted) return;
+    if (aviso != null) {
+      setState(() {
+        _calidadOk = false;
+        _aviso = aviso;
+        _avisoFotoHasta = DateTime.now().add(const Duration(seconds: 4));
+      });
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text('${aviso.problema}. ${aviso.mensaje}')));
+      return;
+    }
+    AppState.instance.nuevoEpisodio(bytes, procesada: foto);
     final c = _camara;
     if (c != null) await c.pausePreview();
     if (!mounted) return;
+    setState(() => _abriendo = false);
+    _ignorarCuadros = true;
     await Navigator.pushNamed(context, Rutas.validacion);
+    _ignorarCuadros = false;
     if (c != null && identical(c, _camara)) await c.resumePreview();
   }
 
@@ -100,14 +202,15 @@ class _CamaraScreenState extends State<CamaraScreen> with WidgetsBindingObserver
     if (_abriendo || c.value.isTakingPicture) return;
     setState(() => _abriendo = true);
     final messenger = ScaffoldMessenger.of(context);
+    _ignorarCuadros = true; // el análisis sigue prendido; solo no se usan estos cuadros
     try {
       final archivo = await c.takePicture();
-      final bytes = await archivo.readAsBytes();
-      if (mounted) setState(() => _abriendo = false);
-      await _seguir(bytes);
+      _ignorarCuadros = false;
+      await _seguir(await archivo.readAsBytes());
     } catch (_) {
       messenger.showSnackBar(const SnackBar(content: Text('No se pudo tomar la foto. Inténtalo de nuevo.')));
     } finally {
+      _ignorarCuadros = false;
       if (mounted && _abriendo) setState(() => _abriendo = false);
     }
   }
@@ -129,8 +232,8 @@ class _CamaraScreenState extends State<CamaraScreen> with WidgetsBindingObserver
     }
 
     if (!mounted) return;
-    setState(() => _abriendo = false);
     if (bytes != null) await _seguir(bytes);
+    if (mounted) setState(() => _abriendo = false);
   }
 
   void _ayuda() {
@@ -194,6 +297,50 @@ class _CamaraScreenState extends State<CamaraScreen> with WidgetsBindingObserver
     );
   }
 
+  /// Color del círculo: blanco mientras no se sabe, verde si la luz y la nitidez
+  /// están bien, rojo si no.
+  Color get _colorCirculo => switch (_calidadOk) {
+    null => AppColors.sobreAccion,
+    true => AppColors.capturaBien,
+    false => AppColors.capturaMal,
+  };
+
+  /// Texto bajo el círculo: qué hacer.
+  Widget _mensajeCirculo() {
+    final aviso = _aviso;
+    if (_calidadOk == false && aviso != null) {
+      final icono = switch (aviso.id) {
+        'oscura' => Icons.wb_sunny_outlined,
+        'mucha_luz' => Icons.wb_shade_outlined,
+        'borrosa' => Icons.blur_on_rounded,
+        _ => Icons.error_outline_rounded,
+      };
+      return Container(
+        constraints: const BoxConstraints(maxWidth: 300),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(color: AppColors.capturaMal, borderRadius: BorderRadius.circular(14)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icono, size: 18, color: Colors.white),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                aviso.mensaje,
+                textAlign: TextAlign.center,
+                style: AppText.cuerpo(12.5, weight: FontWeight.w600, color: Colors.white, height: 1.35),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Text(
+      _calidadOk == true ? 'Buena luz y nitidez: toma la foto' : 'Centra la lesión en el círculo',
+      style: AppText.cuerpo(13, weight: FontWeight.w600, color: AppColors.sobreAccion),
+    );
+  }
+
   Widget _visor() {
     const consejos = [
       (Icons.wb_sunny_outlined, 'Luz natural'),
@@ -236,17 +383,17 @@ class _CamaraScreenState extends State<CamaraScreen> with WidgetsBindingObserver
                       color: AppColors.sobreAccion,
                     ),
                     const SizedBox(height: 16),
-                    Container(
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
                       width: 230,
                       height: 230,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.sobreAccion, width: 2.5),
+                        border: Border.all(color: _colorCirculo, width: _calidadOk == null ? 2.5 : 4),
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Text('Centra la lesión en el círculo',
-                        style: AppText.cuerpo(13, weight: FontWeight.w600, color: AppColors.sobreAccion)),
+                    Semantics(liveRegion: true, child: _mensajeCirculo()),
                   ],
                 ),
               ),

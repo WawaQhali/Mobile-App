@@ -85,12 +85,15 @@ double _gris(img.Pixel p) => 0.299 * p.r + 0.587 * p.g + 0.114 * p.b;
 /// Nitidez: varianza de la respuesta al operador Laplaciano (4 vecinos).
 /// Una foto borrosa casi no tiene bordes, así que la varianza es baja.
 double varianzaLaplaciano(img.Image imagen) {
-  final w = imagen.width, h = imagen.height;
-  final gris = Float64List(w * h);
+  final gris = Float64List(imagen.width * imagen.height);
   var i = 0;
   for (final p in imagen) {
     gris[i++] = _gris(p);
   }
+  return _varianzaLaplacianoGris(gris, imagen.width, imagen.height);
+}
+
+double _varianzaLaplacianoGris(Float64List gris, int w, int h) {
   var suma = 0.0, sumaCuadrados = 0.0, n = 0;
   for (var y = 1; y < h - 1; y++) {
     for (var x = 1; x < w - 1; x++) {
@@ -104,6 +107,35 @@ double varianzaLaplaciano(img.Image imagen) {
   if (n == 0) return 0;
   final media = suma / n;
   return sumaCuadrados / n - media * media;
+}
+
+/// Luz y nitidez de un cuadro de la vista previa de la cámara, en vivo.
+///
+/// Usa solo el plano Y (luminancia, 0 a 255) del cuadro YUV que entrega la cámara.
+/// Se mide el cuadrado central (lo que cae en el círculo y lo que luego se recorta),
+/// muestreado a lo sumo a 512 px, igual que en [procesarFotoSincrono]: así los mismos
+/// umbrales de `db.json -> foto` sirven para la vista previa y para la foto.
+({double nitidez, double luminancia}) metricasDeCuadro(
+  Uint8List planoY, {
+  required int ancho,
+  required int alto,
+  required int bytesPorFila,
+}) {
+  final cuadrado = min(ancho, alto);
+  final n = min(cuadrado, _ladoMetricas);
+  if (n < 3) return (nitidez: 0, luminancia: 0);
+  final x0 = (ancho - cuadrado) ~/ 2, y0 = (alto - cuadrado) ~/ 2;
+  final gris = Float64List(n * n);
+  var suma = 0.0;
+  for (var j = 0; j < n; j++) {
+    final fila = (y0 + j * cuadrado ~/ n) * bytesPorFila + x0;
+    for (var i = 0; i < n; i++) {
+      final v = planoY[fila + i * cuadrado ~/ n].toDouble();
+      gris[j * n + i] = v;
+      suma += v;
+    }
+  }
+  return (nitidez: _varianzaLaplacianoGris(gris, n, n), luminancia: suma / (n * n));
 }
 
 double luminanciaMedia(img.Image imagen) {

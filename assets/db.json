@@ -33,13 +33,15 @@
       "id": "nitidez",
       "label": "Nitidez",
       "problema": "Borrosa",
-      "consejo": "La imagen salió borrosa: apoya los codos y vuelve a intentarlo."
+      "consejo": "No se ve nítido: apoya los codos, no muevas el celular y espera a que enfoque."
     },
     {
       "id": "iluminacion",
       "label": "Iluminación",
       "problema": "Muy oscura",
-      "consejo": "Hay poca luz: busca luz natural, cerca de una ventana."
+      "consejo": "Hay poca luz: ve a un lugar más iluminado, cerca de una ventana.",
+      "problemaExceso": "Demasiada luz",
+      "consejoExceso": "Hay demasiada luz o reflejo: evita el sol directo y el flash."
     },
     {
       "id": "resolucion",
@@ -62,7 +64,7 @@
     }
   ],
   "foto": {
-    "_nota": "Umbrales de la validación (sección 5.2). PROVISIONALES: calibrar con fotos reales (sección 13 de la guía). La pantalla de validación muestra el valor medido de cada foto.",
+    "_nota": "Umbrales de la validación (sección 5.2). PROVISIONALES: calibrar con fotos reales (sección 13 de la guía). Luz (luminancia media 0-255, umbral de luminosidad entre luminanciaMinima y luminanciaMaxima) y nitidez (varianza del Laplaciano) se revisan en la cámara: en vivo (círculo verde o rojo) y sobre la foto tomada. Resolución, piel y rostro, en la pantalla de validación, que muestra el valor medido.",
     "ladoMinimoPx": 1024,
     "nitidezMinima": 20,
     "luminanciaMinima": 60,
