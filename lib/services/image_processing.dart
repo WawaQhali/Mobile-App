@@ -115,15 +115,24 @@ double _varianzaLaplacianoGris(Float64List gris, int w, int h) {
 /// Se mide el cuadrado central (lo que cae en el círculo y lo que luego se recorta),
 /// muestreado a lo sumo a 512 px, igual que en [procesarFotoSincrono]: así los mismos
 /// umbrales de `db.json -> foto` sirven para la vista previa y para la foto.
-({double nitidez, double luminancia}) metricasDeCuadro(
+///
+/// Si llegan los planos de color U (Cb) y V (Cr), también mide qué fracción del
+/// centro del cuadro es piel ([esPiel] en YCbCr, la misma regla que la foto), solo
+/// dentro del círculo de la pantalla: el cuadrado central del [fraccionCirculo]
+/// del lado corto. Sin ellos, `piel` es null.
+({double nitidez, double luminancia, double? piel}) metricasDeCuadro(
   Uint8List planoY, {
   required int ancho,
   required int alto,
   required int bytesPorFila,
+  Uint8List? planoU,
+  Uint8List? planoV,
+  int bytesPorFilaUV = 0,
+  int bytesPorPixelUV = 1,
 }) {
   final cuadrado = min(ancho, alto);
   final n = min(cuadrado, _ladoMetricas);
-  if (n < 3) return (nitidez: 0, luminancia: 0);
+  if (n < 3) return (nitidez: 0, luminancia: 0, piel: null);
   final x0 = (ancho - cuadrado) ~/ 2, y0 = (alto - cuadrado) ~/ 2;
   final gris = Float64List(n * n);
   var suma = 0.0;
@@ -135,7 +144,36 @@ double _varianzaLaplacianoGris(Float64List gris, int w, int h) {
       suma += v;
     }
   }
-  return (nitidez: _varianzaLaplacianoGris(gris, n, n), luminancia: suma / (n * n));
+  final piel = planoU == null || planoV == null
+      ? null
+      : _pielEnCirculo(planoU, planoV, ancho, alto, bytesPorFilaUV, bytesPorPixelUV);
+  return (nitidez: _varianzaLaplacianoGris(gris, n, n), luminancia: suma / (n * n), piel: piel);
+}
+
+/// Lado del cuadrado medido para la piel, como fracción del lado corto del cuadro.
+/// El círculo de la pantalla ocupa ~60 % del ancho visible.
+const fraccionCirculo = 0.6;
+const _muestrasPiel = 48;
+
+/// Fracción de piel en el centro, con los planos U y V (submuestreados 2×2 en YUV 4:2:0).
+double _pielEnCirculo(Uint8List u, Uint8List v, int ancho, int alto, int fila, int paso) {
+  final anchoUV = ancho ~/ 2, altoUV = alto ~/ 2;
+  final lado = (min(anchoUV, altoUV) * fraccionCirculo).floor();
+  if (lado < 2 || fila <= 0) return 0;
+  final x0 = (anchoUV - lado) ~/ 2, y0 = (altoUV - lado) ~/ 2;
+  final m = min(lado, _muestrasPiel);
+  var piel = 0, total = 0;
+  for (var j = 0; j < m; j++) {
+    final y = y0 + j * lado ~/ m;
+    for (var i = 0; i < m; i++) {
+      final k = y * fila + (x0 + i * lado ~/ m) * paso;
+      if (k >= u.length || k >= v.length) continue;
+      final cb = u[k], cr = v[k];
+      if (cb >= 77 && cb <= 127 && cr >= 133 && cr <= 180) piel++;
+      total++;
+    }
+  }
+  return total == 0 ? 0 : piel / total;
 }
 
 double luminanciaMedia(img.Image imagen) {

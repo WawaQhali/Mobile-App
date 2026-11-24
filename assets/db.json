@@ -53,7 +53,8 @@
       "id": "piel",
       "label": "Piel en el encuadre",
       "problema": "No se ve piel",
-      "consejo": "No se ve la piel: quita la ropa de la zona."
+      "consejo": "No se ve la piel: quita la ropa de la zona.",
+      "consejoCamara": "No se ve piel en el círculo: centra la zona con ronchas y quita la ropa."
     },
     {
       "id": "rostro",

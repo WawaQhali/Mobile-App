@@ -121,6 +121,56 @@ void main() {
     expect(enVivo(planoY((x, y) => 120 + x ~/ 40))?.id, 'borrosa');
   });
 
+  /// Planos U y V (320 × 240, la mitad del cuadro) de un solo color Cb/Cr.
+  Uint8List planoUV(int valor) => Uint8List(320 * 240)..fillRange(0, 320 * 240, valor);
+
+  AvisoCaptura? enVivoConColor(int cb, int cr) {
+    final azar = Random(3);
+    final m = metricasDeCuadro(
+      planoY((x, y) => 150 + azar.nextInt(40) - 20),
+      ancho: 640,
+      alto: 480,
+      bytesPorFila: 704,
+      planoU: planoUV(cb),
+      planoV: planoUV(cr),
+      bytesPorFilaUV: 320,
+    );
+    return ValidacionService.revisarCaptura(nitidez: m.nitidez, luminancia: m.luminancia, proporcionPiel: m.piel);
+  }
+
+  test('cuadro en vivo con piel en el círculo: verde', () {
+    expect(enVivoConColor(110, 150), isNull); // Cb/Cr de piel
+  });
+
+  test('cuadro en vivo sin piel en el círculo (teclado, pared): rojo «No se ve piel»', () {
+    final aviso = enVivoConColor(128, 128); // gris
+    expect(aviso?.id, 'sin_piel');
+    expect(aviso?.mensaje, contains('No se ve piel'));
+  });
+
+  test('la piel se mide solo dentro del círculo', () {
+    // Piel solo en los bordes (fuera del 60 % central): no cuenta.
+    final u = Uint8List(320 * 240), v = Uint8List(320 * 240);
+    for (var y = 0; y < 240; y++) {
+      for (var x = 0; x < 320; x++) {
+        final borde = x < 60 || x >= 260;
+        u[y * 320 + x] = borde ? 110 : 128;
+        v[y * 320 + x] = borde ? 150 : 128;
+      }
+    }
+    final m = metricasDeCuadro(planoY((x, y) => 150), ancho: 640, alto: 480, bytesPorFila: 704,
+        planoU: u, planoV: v, bytesPorFilaUV: 320);
+    expect(m.piel, lessThan(0.05));
+  });
+
+  test('sin planos de color no se mide la piel (no se avisa)', () {
+    expect(metricasDeCuadro(planoY((x, y) => 150), ancho: 640, alto: 480, bytesPorFila: 704).piel, isNull);
+  });
+
+  test('con poca luz se avisa la luz antes que la piel', () {
+    expect(ValidacionService.revisarCaptura(nitidez: 999, luminancia: 10, proporcionPiel: 0)?.id, 'oscura');
+  });
+
   test('en vivo se mide solo el cuadrado central', () {
     // Bordes laterales negros: fuera del cuadrado central, no cuentan.
     final azar = Random(3);

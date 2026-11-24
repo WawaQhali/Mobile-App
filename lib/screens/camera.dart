@@ -18,7 +18,8 @@ import '../widgets/illustrations.dart';
 /// Vista previa en vivo de la cámara trasera: el círculo marca dónde centrar el habón.
 /// La luz y la nitidez se revisan aquí, no en la pantalla siguiente:
 /// - en vivo, sobre la vista previa: el círculo se pone verde si están bien y rojo si
-///   no, con el aviso de qué hacer (p. ej. «ve a un lugar más iluminado»);
+///   no, con el aviso de qué hacer (p. ej. «ve a un lugar más iluminado»). En vivo
+///   también se mide si hay piel dentro del círculo (si no, rojo: «No se ve piel»);
 /// - otra vez sobre la foto tomada (o la de la galería): si no pasa, no se avanza.
 class CamaraScreen extends StatefulWidget {
   const CamaraScreen({super.key});
@@ -39,7 +40,7 @@ class _CamaraScreenState extends State<CamaraScreen> with WidgetsBindingObserver
   // Análisis en vivo: un cuadro cada [_cadaCuadro], con las métricas suavizadas.
   static const _cadaCuadro = Duration(milliseconds: 400);
   DateTime _ultimoCuadro = DateTime(0);
-  double? _nitidezVivo, _luzVivo;
+  double? _nitidezVivo, _luzVivo, _pielVivo;
 
   /// Después de una foto rechazada, su aviso se mantiene un momento aunque la
   /// vista previa ya se vea bien, para que se alcance a leer.
@@ -135,12 +136,29 @@ class _CamaraScreenState extends State<CamaraScreen> with WidgetsBindingObserver
     final grupo = cuadro.format.group;
     if (grupo != ImageFormatGroup.yuv420 && grupo != ImageFormatGroup.nv21) return;
     final y = cuadro.planes.first;
-    final m = metricasDeCuadro(y.bytes, ancho: cuadro.width, alto: cuadro.height, bytesPorFila: y.bytesPerRow);
+    // En YUV420 llegan 3 planos: Y, U (Cb) y V (Cr). Con U y V se mide la piel.
+    final uv = grupo == ImageFormatGroup.yuv420 && cuadro.planes.length >= 3;
+    final m = metricasDeCuadro(
+      y.bytes,
+      ancho: cuadro.width,
+      alto: cuadro.height,
+      bytesPorFila: y.bytesPerRow,
+      planoU: uv ? cuadro.planes[1].bytes : null,
+      planoV: uv ? cuadro.planes[2].bytes : null,
+      bytesPorFilaUV: uv ? cuadro.planes[1].bytesPerRow : 0,
+      bytesPorPixelUV: uv ? (cuadro.planes[1].bytesPerPixel ?? 1) : 1,
+    );
     // Promedio con el cuadro anterior: evita que el círculo parpadee.
     _nitidezVivo = _nitidezVivo == null ? m.nitidez : (_nitidezVivo! + m.nitidez) / 2;
     _luzVivo = _luzVivo == null ? m.luminancia : (_luzVivo! + m.luminancia) / 2;
+    final piel = m.piel;
+    if (piel != null) _pielVivo = _pielVivo == null ? piel : (_pielVivo! + piel) / 2;
     if (ahora.isBefore(_avisoFotoHasta)) return;
-    final aviso = ValidacionService.revisarCaptura(nitidez: _nitidezVivo!, luminancia: _luzVivo!);
+    final aviso = ValidacionService.revisarCaptura(
+      nitidez: _nitidezVivo!,
+      luminancia: _luzVivo!,
+      proporcionPiel: _pielVivo,
+    );
     if (aviso?.id == _aviso?.id && _calidadOk == (aviso == null)) return;
     setState(() {
       _calidadOk = aviso == null;
@@ -157,7 +175,7 @@ class _CamaraScreenState extends State<CamaraScreen> with WidgetsBindingObserver
           _camara = null;
           _calidadOk = null;
           _aviso = null;
-          _nitidezVivo = _luzVivo = null;
+          _nitidezVivo = _luzVivo = _pielVivo = null;
         });
         _cerrarCamara(c);
       }
@@ -313,6 +331,7 @@ class _CamaraScreenState extends State<CamaraScreen> with WidgetsBindingObserver
         'oscura' => Icons.wb_sunny_outlined,
         'mucha_luz' => Icons.wb_shade_outlined,
         'borrosa' => Icons.blur_on_rounded,
+        'sin_piel' => Icons.back_hand_outlined,
         _ => Icons.error_outline_rounded,
       };
       return Container(

@@ -88,7 +88,7 @@ class ResultadoValidacion {
 class AvisoCaptura {
   const AvisoCaptura({required this.id, required this.problema, required this.mensaje});
 
-  /// `oscura`, `mucha_luz`, `borrosa` o `ilegible`.
+  /// `oscura`, `mucha_luz`, `sin_piel`, `borrosa` o `ilegible`.
   final String id;
   final String problema; // corto, p. ej. «Muy oscura»
   final String mensaje; // qué hacer, p. ej. «Ve a un lugar más iluminado»
@@ -110,10 +110,17 @@ class ValidacionService {
   /// null si la luz y la nitidez están dentro de los umbrales de `db.json -> foto`.
   /// Primero la luz: con poca luz la foto también sale borrosa, y lo que hay que
   /// corregir es la luz.
-  static AvisoCaptura? revisarCaptura({required double nitidez, required double luminancia}) {
+  ///
+  /// [proporcionPiel]: piel dentro del círculo (solo en vivo). Si no llega a
+  /// `proporcionPielMinima`, el círculo se pone rojo: la cámara no apunta a la piel.
+  static AvisoCaptura? revisarCaptura({
+    required double nitidez,
+    required double luminancia,
+    double? proporcionPiel,
+  }) {
     final u = UmbralesFoto.desdeDb(Db.instance.foto);
     final textos = {for (final v in Db.instance.validaciones) v['id'] as String: v};
-    final luz = textos['iluminacion']!, nitida = textos['nitidez']!;
+    final luz = textos['iluminacion']!, nitida = textos['nitidez']!, piel = textos['piel']!;
     if (luminancia < u.luminanciaMinima) {
       return AvisoCaptura(id: 'oscura', problema: luz['problema'] as String, mensaje: luz['consejo'] as String);
     }
@@ -123,6 +130,9 @@ class ValidacionService {
         problema: luz['problemaExceso'] as String,
         mensaje: luz['consejoExceso'] as String,
       );
+    }
+    if (proporcionPiel != null && proporcionPiel < u.pielMinima) {
+      return AvisoCaptura(id: 'sin_piel', problema: piel['problema'] as String, mensaje: piel['consejoCamara'] as String);
     }
     if (nitidez < u.nitidezMinima) {
       return AvisoCaptura(id: 'borrosa', problema: nitida['problema'] as String, mensaje: nitida['consejo'] as String);
