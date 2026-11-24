@@ -13,9 +13,13 @@ class RecomendacionService {
   static String severidad(Episodio episodio, String? clase) =>
       Cuestionario.instancia.severidad(episodio.respuestas, clase);
 
-  static Orientacion local(String severidad) => Orientacion(
+  /// D41: si la foto no es compatible (y no hay alarma), el respaldo no habla de
+  /// cuidados de urticaria: dice lo mismo que la frase fija del backend.
+  static Orientacion local(String severidad, {String? clase}) => Orientacion(
     severidad: severidad,
-    recomendaciones: Db.instance.recomendacionesLocales(severidad),
+    recomendaciones: Db.instance.recomendacionesLocales(
+      clase == 'no_compatible' && severidad != 'alta' ? 'no_compatible' : severidad,
+    ),
     origen: 'local',
   );
 
@@ -23,7 +27,7 @@ class RecomendacionService {
   static Future<Orientacion> orientar(Episodio episodio, {ResultadoAnalisis? resultado}) async {
     final sev = severidad(episodio, resultado?.clase);
     final remota = await pedirAlBackend(episodio, sev, resultado);
-    return remota ?? local(sev);
+    return remota ?? local(sev, clase: resultado?.clase);
   }
 
   /// null si el backend no dio una respuesta válida.

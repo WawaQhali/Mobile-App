@@ -205,6 +205,7 @@ void main() {
     expect(c.motivosSeveridad({...base, 'extension': 'varias_zonas'}, 'compatible'),
         ['¿Dónde están las ronchas? En varias partes del cuerpo']);
     expect(c.motivosSeveridad(base, 'indeterminado'), ['El análisis de la foto no fue concluyente.']);
+    expect(c.motivosSeveridad(base, 'no_compatible').single, startsWith('La foto no muestra lesiones compatibles'));
     expect(c.motivosSeveridad({...base, 'angustia': true}, 'compatible').single, startsWith('Signo de alarma'));
   });
 }

@@ -16,6 +16,7 @@ import 'package:wawa_qhali/services/classifier_service.dart';
 import 'package:wawa_qhali/services/image_processing.dart';
 import 'package:wawa_qhali/services/local_storage.dart';
 import 'package:wawa_qhali/services/permissions_service.dart';
+import 'package:wawa_qhali/services/recommendation_service.dart';
 import 'package:wawa_qhali/services/validation_service.dart';
 import 'package:wawa_qhali/state/app_state.dart';
 
@@ -349,7 +350,20 @@ void main() {
     expect(c.severidad({...base, 'muy_alergico': true}, 'compatible'), 'moderada');
     expect(c.severidad({...base, 'tiempo_evolucion': 'mas_3_dias'}, 'no_compatible'), 'moderada');
     expect(c.severidad(base, 'indeterminado'), 'moderada');
+    expect(c.severidad(base, 'no_compatible'), 'moderada'); // D41
     expect(c.severidad({...base, 'tos_repentina': true}, 'compatible'), 'alta');
+    expect(c.severidad({...base, 'tos_repentina': true}, 'no_compatible'), 'alta');
+  });
+
+  test('D41: el respaldo local con foto no compatible no habla de cuidados de urticaria', () {
+    final noCompatible = RecomendacionService.local('moderada', clase: 'no_compatible');
+    expect(noCompatible.recomendaciones.first, startsWith('La foto no muestra lesiones compatibles con urticaria'));
+    expect(noCompatible.severidad, 'moderada');
+    expect(RecomendacionService.local('moderada', clase: 'compatible').recomendaciones,
+        Db.instance.recomendacionesLocales('moderada'));
+    // Con un signo de alarma manda la emergencia.
+    expect(RecomendacionService.local('alta', clase: 'no_compatible').recomendaciones,
+        Db.instance.recomendacionesLocales('alta'));
   });
 
   test('donar registra la autorización en el backend y quitarla la revoca', () async {
