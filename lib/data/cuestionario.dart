@@ -67,13 +67,14 @@ class Cuestionario {
   Pregunta pregunta(String id) => preguntas.firstWhere((p) => p.id == id);
 
   /// Reglas del cuestionario v1, en este orden:
-  /// algún «sí» de riesgo → alta; alguna regla moderada o modelo indeterminado → moderada;
-  /// si no, leve. El backend NO calcula la severidad: la recibe de la app.
+  /// algún «sí» de riesgo → alta; alguna regla moderada, o modelo indeterminado o
+  /// no compatible (D41) → moderada; si no, leve. El backend NO calcula la severidad:
+  /// la recibe de la app (y rechaza «no_compatible» con «leve»).
   String severidad(Map<String, Object> respuestas, String? clase) {
     final hayRiesgo = preguntas.any((p) => p.esRiesgo && respuestas[p.id] == true);
     if (hayRiesgo) return 'alta';
     final reglaModerada = reglasModerada.any((r) => respuestas[r.$1] == r.$2);
-    if (reglaModerada || clase == 'indeterminado') return 'moderada';
+    if (reglaModerada || clase == 'indeterminado' || clase == 'no_compatible') return 'moderada';
     return 'leve';
   }
 
@@ -88,6 +89,7 @@ class Cuestionario {
       for (final (id, valor) in reglasModerada)
         if (respuestas[id] == valor) '${pregunta(id).texto} ${pregunta(id).textoRespuesta(valor)}',
       if (clase == 'indeterminado') 'El análisis de la foto no fue concluyente.',
+      if (clase == 'no_compatible') 'La foto no muestra lesiones compatibles con urticaria: conviene que la vea un médico.',
     ];
   }
 }

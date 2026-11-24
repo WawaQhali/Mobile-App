@@ -120,6 +120,11 @@
     ],
     "alta": [
       "Acude a emergencia ahora o llama al SAMU (106)."
+    ],
+    "no_compatible": [
+      "La foto no muestra lesiones compatibles con urticaria. Te recomendamos que un médico evalúe a tu wawa en las próximas 24 a 48 horas.",
+      "Lleva el resumen de esta evaluación para mostrárselo al médico.",
+      "Si aparece dificultad para respirar o hinchazón de labios o párpados, acude a emergencia."
     ]
   },
   "emergencia": {
