@@ -4,6 +4,7 @@ import 'routes.dart';
 import 'screens/analysis.dart';
 import 'screens/welcome.dart';
 import 'screens/camera.dart';
+import 'screens/child_data.dart';
 import 'screens/health_centers.dart';
 import 'screens/questionnaire.dart';
 import 'screens/donation.dart';
@@ -34,6 +35,7 @@ class WawaQhaliApp extends StatelessWidget {
         Rutas.home: (_) => const HomeShell(),
         Rutas.camara: (_) => const CamaraScreen(),
         Rutas.validacion: (_) => const ValidacionScreen(),
+        Rutas.datosNino: (_) => const DatosNinoScreen(),
         Rutas.cuestionario: (_) => const CuestionarioScreen(),
         Rutas.emergencia: (_) => const EmergenciaScreen(),
         Rutas.analisis: (_) => const AnalisisScreen(),

@@ -84,28 +84,86 @@ class ResultadoValidacion {
   bool get conRostro => checks.any((c) => c.id == 'rostro' && !c.ok);
 }
 
-/// Validación automática de la foto (US16, guía sección 5.2): nitidez, luz,
-/// resolución, piel y rostro, medidas sobre la foto real.
+/// Problema de luz o de nitidez que se avisa en la cámara (círculo rojo).
+class AvisoCaptura {
+  const AvisoCaptura({required this.id, required this.problema, required this.mensaje});
+
+  /// `oscura`, `mucha_luz`, `sin_piel`, `borrosa` o `ilegible`.
+  final String id;
+  final String problema; // corto, p. ej. «Muy oscura»
+  final String mensaje; // qué hacer, p. ej. «Ve a un lugar más iluminado»
+
+  static const ilegible = AvisoCaptura(
+    id: 'ilegible',
+    problema: 'No se pudo leer',
+    mensaje: 'No pudimos abrir la foto. Toma otra o elige una diferente.',
+  );
+}
+
+/// Validación automática de la foto (US16, guía sección 5.2).
+///
+/// - Luz y nitidez se revisan EN LA CÁMARA ([revisarCaptura]): en vivo sobre la vista
+///   previa (el círculo se pone verde o rojo) y otra vez sobre la foto tomada, antes
+///   de pasar a la siguiente pantalla.
+/// - La pantalla de validación revisa lo demás ([validar]): resolución, piel y rostro.
 class ValidacionService {
-  static Future<ResultadoValidacion> validar(Uint8List bytes) async {
-    final foto = await procesarFoto(bytes);
+  /// null si la luz y la nitidez están dentro de los umbrales de `db.json -> foto`.
+  /// Primero la luz: con poca luz la foto también sale borrosa, y lo que hay que
+  /// corregir es la luz.
+  ///
+  /// [proporcionPiel]: piel dentro del círculo (solo en vivo). Si no llega a
+  /// `proporcionPielMinima`, el círculo se pone rojo: la cámara no apunta a la piel.
+  static AvisoCaptura? revisarCaptura({
+    required double nitidez,
+    required double luminancia,
+    double? proporcionPiel,
+  }) {
+    final u = UmbralesFoto.desdeDb(Db.instance.foto);
+    final textos = {for (final v in Db.instance.validaciones) v['id'] as String: v};
+    final luz = textos['iluminacion']!, nitida = textos['nitidez']!, piel = textos['piel']!;
+    if (luminancia < u.luminanciaMinima) {
+      return AvisoCaptura(id: 'oscura', problema: luz['problema'] as String, mensaje: luz['consejo'] as String);
+    }
+    if (luminancia > u.luminanciaMaxima) {
+      return AvisoCaptura(
+        id: 'mucha_luz',
+        problema: luz['problemaExceso'] as String,
+        mensaje: luz['consejoExceso'] as String,
+      );
+    }
+    if (proporcionPiel != null && proporcionPiel < u.pielMinima) {
+      return AvisoCaptura(id: 'sin_piel', problema: piel['problema'] as String, mensaje: piel['consejoCamara'] as String);
+    }
+    if (nitidez < u.nitidezMinima) {
+      return AvisoCaptura(id: 'borrosa', problema: nitida['problema'] as String, mensaje: nitida['consejo'] as String);
+    }
+    return null;
+  }
+
+  /// Revisión de una foto ya tomada (la de la cámara o la de la galería).
+  static AvisoCaptura? revisarFoto(FotoProcesada? foto) => foto == null
+      ? AvisoCaptura.ilegible
+      : revisarCaptura(nitidez: foto.nitidez, luminancia: foto.luminancia);
+
+  /// Resolución, piel y rostro. Si la cámara ya procesó la foto, se pasa en
+  /// [procesada] para no repetir el trabajo.
+  static Future<ResultadoValidacion> validar(Uint8List bytes, {FotoProcesada? procesada}) async {
+    final foto = procesada ?? await procesarFoto(bytes);
     final textos = {for (final v in Db.instance.validaciones) v['id'] as String: v};
     if (foto == null) {
-      final t = textos['nitidez']!;
       return ResultadoValidacion([
         CheckFoto(
           id: 'lectura',
           label: 'Lectura de la foto',
           ok: false,
-          problema: 'No se pudo leer',
-          consejo: 'No pudimos abrir la foto. ${t['consejo']}',
+          problema: AvisoCaptura.ilegible.problema,
+          consejo: AvisoCaptura.ilegible.mensaje,
         ),
       ], null);
     }
 
     final u = UmbralesFoto.desdeDb(Db.instance.foto);
     final rostro = await DetectorRostros.instancia.hayRostro(foto.recorte).catchError((Object _) => false);
-    String n(double v) => v.toStringAsFixed(v < 10 ? 2 : 0);
 
     CheckFoto check(String id, bool ok, String detalle, {String? problema, String? consejo}) {
       final t = textos[id]!;
@@ -120,16 +178,7 @@ class ValidacionService {
       );
     }
 
-    final oscura = foto.luminancia < u.luminanciaMinima;
     return ResultadoValidacion([
-      check('nitidez', foto.nitidez >= u.nitidezMinima, 'Medido: ${n(foto.nitidez)} · mínimo ${n(u.nitidezMinima)}'),
-      check(
-        'iluminacion',
-        !oscura && foto.luminancia <= u.luminanciaMaxima,
-        'Medido: ${n(foto.luminancia)} · entre ${n(u.luminanciaMinima)} y ${n(u.luminanciaMaxima)}',
-        problema: oscura ? 'Muy oscura' : 'Demasiada luz',
-        consejo: oscura ? null : 'Hay demasiada luz o reflejo: evita el sol directo y el flash.',
-      ),
       check(
         'resolucion',
         foto.ladoCorto >= u.ladoMinimoPx,

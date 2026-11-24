@@ -6,8 +6,8 @@
     "contenidoClinico": "[fecha]",
     "distrito": "La Molina",
     "samu": "106",
-    "terminosUrl": "https://www.google.com",
-    "privacidadUrl": "https://www.google.com",
+    "terminosUrl": "https://wawaqhali.github.io/information/terminos.html",
+    "privacidadUrl": "https://wawaqhali.github.io/information/privacidad.html",
     "avisoRostro": "Si en la foto se ve el rostro de tu wawa, esa foto no se dona, para proteger su identidad. Igual puedes usarla para tu orientación.",
     "avisoLegal": "Wawa Qhali brinda una orientación preliminar y no emite diagnósticos médicos ni reemplaza la consulta con un profesional de salud. Ante cualquier duda o signo de alarma, acude a un establecimiento de salud o llama al SAMU 106."
   },
@@ -33,13 +33,15 @@
       "id": "nitidez",
       "label": "Nitidez",
       "problema": "Borrosa",
-      "consejo": "La imagen salió borrosa: apoya los codos y vuelve a intentarlo."
+      "consejo": "No se ve nítido: apoya los codos, no muevas el celular y espera a que enfoque."
     },
     {
       "id": "iluminacion",
       "label": "Iluminación",
       "problema": "Muy oscura",
-      "consejo": "Hay poca luz: busca luz natural, cerca de una ventana."
+      "consejo": "Hay poca luz: ve a un lugar más iluminado, cerca de una ventana.",
+      "problemaExceso": "Demasiada luz",
+      "consejoExceso": "Hay demasiada luz o reflejo: evita el sol directo y el flash."
     },
     {
       "id": "resolucion",
@@ -51,7 +53,8 @@
       "id": "piel",
       "label": "Piel en el encuadre",
       "problema": "No se ve piel",
-      "consejo": "No se ve la piel: quita la ropa de la zona."
+      "consejo": "No se ve la piel: quita la ropa de la zona.",
+      "consejoCamara": "No se ve piel en el círculo: centra la zona con ronchas y quita la ropa."
     },
     {
       "id": "rostro",
@@ -62,7 +65,7 @@
     }
   ],
   "foto": {
-    "_nota": "Umbrales de la validación (sección 5.2). PROVISIONALES: calibrar con fotos reales (sección 13 de la guía). La pantalla de validación muestra el valor medido de cada foto.",
+    "_nota": "Umbrales de la validación (sección 5.2). PROVISIONALES: calibrar con fotos reales (sección 13 de la guía). Luz (luminancia media 0-255, umbral de luminosidad entre luminanciaMinima y luminanciaMaxima) y nitidez (varianza del Laplaciano) se revisan en la cámara: en vivo (círculo verde o rojo) y sobre la foto tomada. Resolución, piel y rostro, en la pantalla de validación, que muestra el valor medido.",
     "ladoMinimoPx": 1024,
     "nitidezMinima": 20,
     "luminanciaMinima": 60,

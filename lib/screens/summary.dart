@@ -10,8 +10,10 @@ import '../widgets/shared.dart';
 import 'result.dart';
 
 /// 11 · Resumen para el médico (US10): la última evaluación guardada en el celular
-/// (foto, resultado, severidad, respuestas y recomendaciones con sus fuentes),
-/// para enseñarla en la consulta o en emergencia. Se reemplaza en cada evaluación.
+/// (foto, edad y sexo de la wawa, resultado, severidad, respuestas y recomendaciones
+/// con sus fuentes), para enseñarla en la consulta o en emergencia. Se reemplaza en
+/// cada evaluación. Las respuestas van en una sola lista, sin separar «signos de
+/// alarma» de «síntomas» (como en el cuestionario).
 class ResumenScreen extends StatelessWidget {
   const ResumenScreen({super.key});
 
@@ -27,24 +29,32 @@ class ResumenScreen extends StatelessWidget {
 
   static String _severidad(Episodio e) => etiquetaSeveridad(e.severidad ?? 'alta');
 
-  /// Preguntas respondidas, en orden: las de riesgo o las normales (síntomas).
-  static List<(Pregunta, String)> _respondidas(Episodio e, {required bool riesgo}) => [
+  /// Preguntas respondidas, en el orden del cuestionario.
+  static List<(Pregunta, String)> _respondidas(Episodio e) => [
     for (final p in Cuestionario.instancia.preguntas)
-      if (p.esRiesgo == riesgo && e.respuestas[p.id] != null) (p, p.textoRespuesta(e.respuestas[p.id]!)),
+      if (e.respuestas[p.id] != null) (p, p.textoRespuesta(e.respuestas[p.id]!)),
   ];
+
+  /// «Niña · 2 años». null si la evaluación es de antes de que se pidieran.
+  static String? datosNino(Episodio e) {
+    final partes = [
+      if (e.sexo != null) e.sexo == 'femenino' ? 'Niña' : 'Niño',
+      if (e.edadAnios != null) '${e.edadAnios} ${e.edadAnios == 1 ? 'año' : 'años'}',
+    ];
+    return partes.isEmpty ? null : partes.join(' · ');
+  }
 
   String _texto(Episodio e) {
     final lineas = [
       'Wawa Qhali · Resumen para el médico',
       '${formatoFecha(e.fecha)} - ${formatoHora(e.fecha)}',
+      if (datosNino(e) != null) 'Wawa: ${datosNino(e)}',
       'Resultado: ${_resultado(e)}'
           '${e.resultado == null ? '' : ' (${etiquetaConfianza(e.resultado!.confianza).toLowerCase()})'}',
       'Severidad: ${_severidad(e)}',
       '',
-      'Signos de alarma:',
-      for (final (p, r) in _respondidas(e, riesgo: true)) '- ${p.texto} $r',
-      if (_respondidas(e, riesgo: false).isNotEmpty) ...['', 'Síntomas:'],
-      for (final (p, r) in _respondidas(e, riesgo: false)) '- ${p.texto} $r',
+      'Respuestas:',
+      for (final (p, r) in _respondidas(e)) '- ${p.texto} $r',
       if (e.orientacion != null) ...[
         '',
         'Recomendaciones:',
@@ -86,8 +96,8 @@ class ResumenScreen extends StatelessWidget {
           final estilo = r == null
               ? (fondo: AppColors.terracotaFondo, texto: AppColors.terracota, icono: Icons.warning_amber_rounded)
               : estiloClase(r.clase);
-          final alarmas = _respondidas(e, riesgo: true);
-          final sintomas = _respondidas(e, riesgo: false);
+          final respuestas = _respondidas(e);
+          final nino = datosNino(e);
 
           return PantallaScroll(
             children: [
@@ -145,6 +155,13 @@ class ResumenScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (nino != null) ...[
+                      _Dato('Tu wawa', nino),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Divider(height: 1, color: AppColors.divisor),
+                      ),
+                    ],
                     _Dato('Resultado', _resultado(e)),
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 12),
@@ -164,11 +181,7 @@ class ResumenScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              _Respuestas(titulo: 'Signos de alarma', filas: alarmas),
-              if (sintomas.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                _Respuestas(titulo: 'Síntomas', filas: sintomas),
-              ],
+              _Respuestas(titulo: 'Respuestas', filas: respuestas),
               if (e.orientacion != null) ...[
                 const SizedBox(height: 12),
                 Tarjeta(
@@ -259,11 +272,7 @@ class _Respuestas extends StatelessWidget {
                         child: Text(
                           respuesta,
                           textAlign: TextAlign.right,
-                          style: AppText.cuerpo(
-                            13,
-                            weight: FontWeight.w700,
-                            color: p.esRiesgo && respuesta == 'Sí' ? AppColors.terracota : AppColors.tinta,
-                          ),
+                          style: AppText.cuerpo(13, weight: FontWeight.w700),
                         ),
                       ),
                     ],

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../services/api_client.dart';
 import '../services/donation_service.dart';
+import '../services/image_processing.dart';
 import '../services/local_storage.dart';
 import '../services/permissions_service.dart';
 import '../services/zona_principal.dart';
@@ -58,6 +59,14 @@ class Episodio {
   /// La foto tal como salió de la cámara, solo mientras se valida. Nunca se guarda.
   Uint8List? fotoOriginal;
 
+  /// Métricas y recorte que la cámara ya calculó (luz y nitidez revisadas). Solo en memoria.
+  FotoProcesada? procesada;
+
+  /// Datos del niño o la niña, que se piden antes del cuestionario (1 a 4 años).
+  /// Se envían al backend (orientación y donación) y salen en el resumen.
+  int? edadAnios;
+  String? sexo; // femenino | masculino
+
   /// Donación de esta foto: null (no se intentó), 'enviando', 'enviada', 'pendiente'
   /// (cifrada en la cola, se envía cuando haya conexión) o 'fallo'.
   String? donacion;
@@ -77,6 +86,8 @@ class Episodio {
 
   Map<String, dynamic> aJson() => {
     'fecha': fecha.toIso8601String(),
+    'edad_anios': edadAnios,
+    'sexo': sexo,
     'respuestas': respuestas,
     'alarma': alarma,
     if (resultado != null) 'resultado': {'clase': resultado!.clase, 'confianza': resultado!.confianza},
@@ -84,7 +95,10 @@ class Episodio {
   };
 
   static Episodio desdeJson(Map<String, dynamic> j, Uint8List? foto) {
-    final e = Episodio(foto: foto, fecha: DateTime.parse(j['fecha'] as String))..alarma = j['alarma'] as String?;
+    final e = Episodio(foto: foto, fecha: DateTime.parse(j['fecha'] as String))
+      ..alarma = j['alarma'] as String?
+      ..edadAnios = j['edad_anios'] as int?
+      ..sexo = j['sexo'] as String?;
     e.respuestas.addAll((j['respuestas'] as Map).cast<String, Object>());
     final r = j['resultado'] as Map<String, dynamic>?;
     if (r != null) {
@@ -238,10 +252,25 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Empieza una evaluación con la foto recién tomada (todavía sin validar).
-  void nuevoEpisodio(Uint8List original) {
-    actual = Episodio()..fotoOriginal = original;
+  /// Empieza una evaluación con la foto recién tomada. La cámara ya revisó su luz y
+  /// su nitidez ([procesada]); falta la validación de resolución, piel y rostro.
+  void nuevoEpisodio(Uint8List original, {FotoProcesada? procesada}) {
+    actual = Episodio()
+      ..fotoOriginal = original
+      ..procesada = procesada;
   }
+
+  /// Edad y sexo del niño o la niña (pantalla anterior al cuestionario).
+  void guardarDatosNino({required int edadAnios, required String sexo}) {
+    assert(edadAnios >= edadMinima && edadAnios <= edadMaxima);
+    episodio
+      ..edadAnios = edadAnios
+      ..sexo = sexo;
+  }
+
+  /// Wawa Qhali es para niños y niñas de 1 a 4 años.
+  static const edadMinima = 1;
+  static const edadMaxima = 4;
 
   void marcarDonacion(Episodio e, String estado) {
     e.donacion = estado;
