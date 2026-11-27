@@ -26,11 +26,24 @@ android {
         versionName = flutter.versionName
     }
 
+    // Firma fija para Firebase App Distribution: el CI deja el keystore en WAWA_KEYSTORE
+    // (sale de un secreto de GitHub, nunca del repo). Con la misma firma, los probadores
+    // actualizan sin desinstalar. Sin esa variable (en local) se firma con la clave de depuración.
+    val keystore = System.getenv("WAWA_KEYSTORE")
+    signingConfigs {
+        if (keystore != null) {
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = System.getenv("WAWA_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("WAWA_KEY_ALIAS")
+                keyPassword = System.getenv("WAWA_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(if (keystore != null) "release" else "debug")
         }
     }
 }
