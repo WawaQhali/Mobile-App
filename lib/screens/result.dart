@@ -102,6 +102,15 @@ class ResultadoScreen extends StatelessWidget {
                   info['descripcion'] as String,
                   style: AppText.cuerpo(13, color: AppColors.textoSuave, height: 1.5),
                 ),
+                // Para saber qué modelo dio el resultado al revisar casos (pruebas, informe).
+                if (r.modelo != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Modelo ${r.modelo} · ${(r.confianza * 100).round()} %',
+                    key: const Key('resultado-modelo'),
+                    style: AppText.cuerpo(11.5, color: AppColors.textoSuave),
+                  ),
+                ],
               ],
             ),
           ),

@@ -2,7 +2,6 @@
   "_nota": "Contenido estático de la app. Las preguntas están en preguntas.json; los centros de salud se buscan cerca de tu ubicación (OpenStreetMap).",
   "app": {
     "version": "0.1.0",
-    "modelo": "0.0 (simulado)",
     "contenidoClinico": "[fecha]",
     "distrito": "La Molina",
     "samu": "106",

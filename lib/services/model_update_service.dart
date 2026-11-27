@@ -67,6 +67,14 @@ class ActualizadorModelo {
     }
   }
 
+  /// Para Ajustes: el modelo que usará la próxima clasificación.
+  static Future<String> etiquetaInstalada() async {
+    final contrato = await AppState.instance.almacen.leerJson(archivoContrato);
+    final version = contrato?['version'] as String?;
+    if (version != null) return etiquetaModelo(version, delApk: false);
+    return etiquetaModelo(await _versionDelApk(), delApk: true);
+  }
+
   Future<String> versionInstalada() async =>
       (await almacen.leerJson(archivoContrato))?['version'] as String? ?? await versionDelApk();
 

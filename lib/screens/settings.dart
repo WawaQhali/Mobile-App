@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/db.dart';
 import '../services/links.dart';
+import '../services/model_update_service.dart';
 import '../services/permissions_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -117,7 +118,13 @@ class AjustesScreen extends StatelessWidget {
               children: [
                 _Fila(titulo: 'Contenido clínico', trailing: _Valor('Actualizado ${app['contenidoClinico']}')),
                 _Fila(titulo: 'Versión de la app', trailing: _Valor(app['version'] as String)),
-                _Fila(titulo: 'Versión del modelo', trailing: _Valor(app['modelo'] as String)),
+                _Fila(
+                  titulo: 'Versión del modelo',
+                  trailing: FutureBuilder<String>(
+                    future: ActualizadorModelo.etiquetaInstalada(),
+                    builder: (_, s) => _Valor(s.data ?? (s.hasError ? 'No disponible' : '…')),
+                  ),
+                ),
               ],
             ),
           ],
