@@ -185,7 +185,9 @@ class DonacionService {
         contenido: {
           'imagen_jpeg': base64.encode(e.foto!),
           'etiqueta_preliminar': {
-            'clase': e.resultado!.clase,
+            // Lo que dijo el modelo (sin la corrección por «no veo ronchas», D42): así la médica
+            // ve el error del modelo y la foto sirve para reentrenarlo.
+            'clase': e.resultado!.claseModelo ?? e.resultado!.clase,
             'confianza': e.resultado!.confianza,
             'respuestas': e.respuestas,
             'version_modelo': Clasificador.instancia.versionModelo,

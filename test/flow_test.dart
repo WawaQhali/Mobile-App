@@ -67,7 +67,7 @@ Future<void> hastaCuestionario(WidgetTester tester) async {
   // Antes del cuestionario: sexo y edad de la wawa (solo 1 a 4 años).
   expect(find.text('Cuéntanos sobre tu wawa'), findsOneWidget);
   await responderDatosNino(tester);
-  expect(find.text('Pregunta 1 de 14'), findsOneWidget);
+  expect(find.text('Pregunta 1 de 15'), findsOneWidget);
 }
 
 /// Niña de 3 años: la rueda empieza en «1 año» y se baja dos posiciones.
@@ -81,12 +81,12 @@ Future<void> responderDatosNino(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-/// Las 8 de riesgo con «No» y las 6 normales (severidad leve).
-Future<void> responderSinAlarma(WidgetTester tester) async {
+/// Las 8 de riesgo con «No», las 6 normales (severidad leve) y «¿Ves ronchas?» (D42).
+Future<void> responderSinAlarma(WidgetTester tester, {String veRonchas = 'Sí'}) async {
   for (var i = 0; i < 8; i++) {
     await tocar(tester, find.text('No'));
   }
-  for (final r in ['Sí', 'Sí', 'Menos de un día', 'En una sola parte del cuerpo', 'No sé', 'No']) {
+  for (final r in ['Sí', 'Sí', 'Menos de un día', 'En una sola parte del cuerpo', 'No sé', 'No', veRonchas]) {
     await tocar(tester, find.text(r));
   }
 }
@@ -270,6 +270,49 @@ void main() {
     expect(find.text('No pudimos determinarlo'), findsOneWidget);
     expect(find.text('Moderada'), findsOneWidget);
     expect(find.textContaining('Por qué: El análisis de la foto no fue concluyente.'), findsOneWidget);
+  });
+
+  testWidgets('D42: si no ve ronchas, el modelo no puede decir urticaria', (tester) async {
+    clasificador.prediccion = const Prediccion('compatible', 0.76);
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    await hastaCuestionario(tester);
+    expect(find.text('¿Ves ronchas o manchas rojas en la piel de tu wawa?'), findsNothing);
+    await responderSinAlarma(tester, veRonchas: 'No');
+    await esperar(tester, 3000);
+
+    // Al backend va «no compatible» con moderada, y la respuesta de ronchas NO va en `respuestas`.
+    final enviado = backend.cuerpo('/v1/orientacion');
+    expect(enviado['clase'], 'no_compatible');
+    expect(enviado['severidad'], 'moderada');
+    expect((enviado['respuestas'] as Map).containsKey('ve_ronchas'), isFalse);
+
+    await tocar(tester, find.text('Ver resultado'));
+    expect(find.text('Sí, compatible'), findsNothing);
+    expect(find.text('Moderada'), findsOneWidget);
+    expect(find.byKey(const Key('resultado-corregido')), findsOneWidget);
+    expect(find.textContaining('Indicaste que no ves ronchas en la piel'), findsOneWidget);
+    expect(AppState.instance.ultimo!.resultado!.claseModelo, 'compatible');
+  });
+
+  testWidgets('D42: con «No estoy seguro» manda el modelo', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    await hastaCuestionario(tester);
+    await responderSinAlarma(tester, veRonchas: 'No estoy seguro');
+    await esperar(tester, 3000);
+    expect(backend.cuerpo('/v1/orientacion')['clase'], 'compatible');
+    await tocar(tester, find.text('Ver resultado'));
+    expect(find.text('Sí, compatible'), findsOneWidget);
+    expect(find.byKey(const Key('resultado-corregido')), findsNothing);
+  });
+
+  test('D42: claseFinal solo corrige cuando no se ven ronchas', () {
+    expect(claseFinal('compatible', 'no'), 'no_compatible');
+    expect(claseFinal('indeterminado', 'no'), 'no_compatible');
+    expect(claseFinal('no_compatible', 'no'), 'no_compatible');
+    expect(claseFinal('compatible', 'si'), 'compatible');
+    expect(claseFinal('compatible', 'no_se'), 'compatible');
+    expect(claseFinal('no_compatible', 'si'), 'no_compatible');
+    expect(claseFinal('indeterminado', null), 'indeterminado');
   });
 
   testWidgets('si dona fotos, la foto se cifra y se envía al terminar el análisis', (tester) async {
