@@ -11,10 +11,15 @@ import '../services/zona_principal.dart';
 
 /// Lo que devuelve el clasificador (el modelo corre en el celular).
 class ResultadoAnalisis {
-  const ResultadoAnalisis({required this.clase, required this.confianza, this.modelo});
+  const ResultadoAnalisis({required this.clase, required this.confianza, this.modelo, this.claseModelo});
 
-  final String clase; // compatible | no_compatible | indeterminado
-  final double confianza; // 0..1
+  /// Resultado que se muestra y decide la severidad: compatible | no_compatible | indeterminado.
+  final String clase;
+  final double confianza; // 0..1, la del modelo
+
+  /// Lo que dijo el modelo, si la respuesta «no veo ronchas» lo corrigió (D42). Null si no hubo corrección.
+  final String? claseModelo;
+  bool get corregidaPorRonchas => claseModelo != null && claseModelo != clase;
 
   /// Modelo que dio este resultado, como se muestra en la app («1.1.1» o
   /// «1.0.0 (respaldo del APK)»). Null en resultados guardados antes de este cambio.
@@ -75,6 +80,10 @@ class Episodio {
   /// (cifrada en la cola, se envía cuando haya conexión) o 'fallo'.
   String? donacion;
   final Map<String, Object> respuestas = {}; // id -> true/false o id de la opción
+
+  /// «¿Ves ronchas o manchas rojas?» (D42): si | no | no_se. No va en `respuestas`
+  /// (el backend solo acepta el cuestionario v1); corrige el resultado en el celular.
+  String? veRonchas;
   String? alarma; // pregunta de riesgo respondida con «Sí» (corta el cuestionario)
   bool conRostro = false; // se ve el rostro del menor: la foto no se dona
   bool get donable => foto != null && !conRostro;
@@ -99,7 +108,9 @@ class Episodio {
         'clase': resultado!.clase,
         'confianza': resultado!.confianza,
         if (resultado!.modelo != null) 'modelo': resultado!.modelo,
+        if (resultado!.claseModelo != null) 'clase_modelo': resultado!.claseModelo,
       },
+    if (veRonchas != null) 've_ronchas': veRonchas,
     if (orientacion != null) 'orientacion': orientacion!.aJson(),
   };
 
@@ -107,7 +118,8 @@ class Episodio {
     final e = Episodio(foto: foto, fecha: DateTime.parse(j['fecha'] as String))
       ..alarma = j['alarma'] as String?
       ..edadAnios = j['edad_anios'] as int?
-      ..sexo = j['sexo'] as String?;
+      ..sexo = j['sexo'] as String?
+      ..veRonchas = j['ve_ronchas'] as String?;
     e.respuestas.addAll((j['respuestas'] as Map).cast<String, Object>());
     final r = j['resultado'] as Map<String, dynamic>?;
     if (r != null) {
@@ -115,6 +127,7 @@ class Episodio {
         clase: r['clase'] as String,
         confianza: (r['confianza'] as num).toDouble(),
         modelo: r['modelo'] as String?,
+        claseModelo: r['clase_modelo'] as String?,
       );
     }
     final o = j['orientacion'] as Map<String, dynamic>?;

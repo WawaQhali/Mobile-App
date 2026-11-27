@@ -20,7 +20,8 @@ class CuestionarioScreen extends StatefulWidget {
 }
 
 class _CuestionarioScreenState extends State<CuestionarioScreen> {
-  final _preguntas = Cuestionario.instancia.preguntas;
+  // Las 14 del cuestionario v1 y, al final, «¿Ves ronchas?» (D42, no se envía al backend).
+  final _preguntas = Cuestionario.instancia.preguntasEnPantalla;
   int _i = 0;
 
   Episodio get _episodio => AppState.instance.episodio;
@@ -33,7 +34,11 @@ class _CuestionarioScreenState extends State<CuestionarioScreen> {
       return;
     }
     if (_episodio.alarma == id) _episodio.alarma = null; // volvió de emergencia y corrigió
-    _episodio.respuestas[id] = valor;
+    if (id == Cuestionario.preguntaRonchas.id) {
+      _episodio.veRonchas = valor as String;
+    } else {
+      _episodio.respuestas[id] = valor;
+    }
 
     if (_i < _preguntas.length - 1) {
       setState(() => _i++);
@@ -53,7 +58,8 @@ class _CuestionarioScreenState extends State<CuestionarioScreen> {
   @override
   Widget build(BuildContext context) {
     final pregunta = _preguntas[_i];
-    final elegida = _episodio.respuestas[pregunta.id];
+    final elegida =
+        pregunta.id == Cuestionario.preguntaRonchas.id ? _episodio.veRonchas : _episodio.respuestas[pregunta.id];
 
     return PopScope(
       canPop: _i == 0,

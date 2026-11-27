@@ -51,7 +51,7 @@ class ResultadoScreen extends StatelessWidget {
     final nivel = severidad['nivel'] as int;
     final estilo = estiloClase(r.clase);
     final colores = colorSeveridad(o.severidad);
-    final motivos = Cuestionario.instancia.motivosSeveridad(e!.respuestas, r.clase);
+    final motivos = Cuestionario.instancia.motivosSeveridad(e!.respuestas, r.clase, sinRonchas: r.corregidaPorRonchas);
 
     return Scaffold(
       body: PantallaScroll(
@@ -103,6 +103,16 @@ class ResultadoScreen extends StatelessWidget {
                   style: AppText.cuerpo(13, color: AppColors.textoSuave, height: 1.5),
                 ),
                 // Para saber qué modelo dio el resultado al revisar casos (pruebas, informe).
+                // D42: la respuesta «no veo ronchas» corrigió al modelo; se dice con claridad.
+                if (r.corregidaPorRonchas) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Indicaste que no ves ronchas, así que no lo tomamos como urticaria. '
+                    'El análisis de la foto decía: ${Db.instance.resultado(r.claseModelo!)['respuesta']}.',
+                    key: const Key('resultado-corregido'),
+                    style: AppText.cuerpo(12.5, color: AppColors.textoSuave, height: 1.4),
+                  ),
+                ],
                 if (r.modelo != null) ...[
                   const SizedBox(height: 8),
                   Text(

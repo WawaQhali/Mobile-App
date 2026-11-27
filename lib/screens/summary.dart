@@ -33,6 +33,7 @@ class ResumenScreen extends StatelessWidget {
   static List<(Pregunta, String)> _respondidas(Episodio e) => [
     for (final p in Cuestionario.instancia.preguntas)
       if (e.respuestas[p.id] != null) (p, p.textoRespuesta(e.respuestas[p.id]!)),
+    if (e.veRonchas != null) (Cuestionario.preguntaRonchas, Cuestionario.preguntaRonchas.textoRespuesta(e.veRonchas!)),
   ];
 
   /// «Niña · 2 años». null si la evaluación es de antes de que se pidieran.

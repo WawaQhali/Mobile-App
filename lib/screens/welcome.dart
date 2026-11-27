@@ -50,7 +50,7 @@ class BienvenidaScreen extends StatelessWidget {
               const Expanded(child: _Rasgo(icono: Icons.photo_camera_outlined, texto: 'Una foto')),
               const SizedBox(width: 8),
               Expanded(
-                child: _Rasgo(icono: Icons.checklist_rounded, texto: '${Cuestionario.instancia.preguntas.length} preguntas'),
+                child: _Rasgo(icono: Icons.checklist_rounded, texto: '${Cuestionario.instancia.preguntasEnPantalla.length} preguntas'),
               ),
               const SizedBox(width: 8),
               const Expanded(child: _Rasgo(icono: Icons.favorite_border_rounded, texto: 'Orientación')),

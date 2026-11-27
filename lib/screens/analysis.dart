@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/cuestionario.dart';
 import '../routes.dart';
 import '../services/classifier_service.dart';
 import '../services/donation_service.dart';
@@ -42,8 +43,11 @@ class _AnalisisScreenState extends State<AnalisisScreen> with SingleTickerProvid
     // Modelo TFLite en el celular.
     final prediccion = await Clasificador.instancia.clasificar(entrada);
     final clasificador = Clasificador.instancia;
+    // D42: si no ve ronchas, el resultado no puede ser «compatible» ni «indeterminado».
+    final clase = claseFinal(prediccion.clase, e.veRonchas);
     final resultado = ResultadoAnalisis(
-      clase: prediccion.clase,
+      clase: clase,
+      claseModelo: clase == prediccion.clase ? null : prediccion.clase,
       confianza: prediccion.confianza,
       modelo: etiquetaModelo(clasificador.versionModelo, delApk: clasificador.modeloDelApk),
     );
