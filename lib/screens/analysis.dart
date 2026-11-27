@@ -41,7 +41,12 @@ class _AnalisisScreenState extends State<AnalisisScreen> with SingleTickerProvid
     e.zona = zona;
     // Modelo TFLite en el celular.
     final prediccion = await Clasificador.instancia.clasificar(entrada);
-    final resultado = ResultadoAnalisis(clase: prediccion.clase, confianza: prediccion.confianza);
+    final clasificador = Clasificador.instancia;
+    final resultado = ResultadoAnalisis(
+      clase: prediccion.clase,
+      confianza: prediccion.confianza,
+      modelo: etiquetaModelo(clasificador.versionModelo, delApk: clasificador.modeloDelApk),
+    );
     if (mounted) setState(() => _buscandoRecomendaciones = true);
     // Severidad en la app; recomendaciones del backend (LLM + RAG) o, si falla, locales.
     final orientacion = await RecomendacionService.orientar(e, resultado: resultado);

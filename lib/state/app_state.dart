@@ -11,10 +11,14 @@ import '../services/zona_principal.dart';
 
 /// Lo que devuelve el clasificador (el modelo corre en el celular).
 class ResultadoAnalisis {
-  const ResultadoAnalisis({required this.clase, required this.confianza});
+  const ResultadoAnalisis({required this.clase, required this.confianza, this.modelo});
 
   final String clase; // compatible | no_compatible | indeterminado
   final double confianza; // 0..1
+
+  /// Modelo que dio este resultado, como se muestra en la app («1.1.1» o
+  /// «1.0.0 (respaldo del APK)»). Null en resultados guardados antes de este cambio.
+  final String? modelo;
 }
 
 /// Severidad y recomendaciones. `origen` dice de dónde salieron:
@@ -90,7 +94,12 @@ class Episodio {
     'sexo': sexo,
     'respuestas': respuestas,
     'alarma': alarma,
-    if (resultado != null) 'resultado': {'clase': resultado!.clase, 'confianza': resultado!.confianza},
+    if (resultado != null)
+      'resultado': {
+        'clase': resultado!.clase,
+        'confianza': resultado!.confianza,
+        if (resultado!.modelo != null) 'modelo': resultado!.modelo,
+      },
     if (orientacion != null) 'orientacion': orientacion!.aJson(),
   };
 
@@ -102,7 +111,11 @@ class Episodio {
     e.respuestas.addAll((j['respuestas'] as Map).cast<String, Object>());
     final r = j['resultado'] as Map<String, dynamic>?;
     if (r != null) {
-      e.resultado = ResultadoAnalisis(clase: r['clase'] as String, confianza: (r['confianza'] as num).toDouble());
+      e.resultado = ResultadoAnalisis(
+        clase: r['clase'] as String,
+        confianza: (r['confianza'] as num).toDouble(),
+        modelo: r['modelo'] as String?,
+      );
     }
     final o = j['orientacion'] as Map<String, dynamic>?;
     if (o != null) e.orientacion = Orientacion.desdeJson(o);

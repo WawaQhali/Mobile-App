@@ -47,8 +47,15 @@ abstract class Clasificador {
   static Clasificador instancia = ClasificadorTflite(leerDescargado: ActualizadorModelo.leerInstalado);
 
   String get versionModelo;
+
+  /// true si se está usando el modelo de respaldo que viene dentro del APK
+  /// (no se pudo bajar el vigente o todavía no se bajó).
+  bool get modeloDelApk;
   Future<Prediccion> clasificar(Uint8List jpeg);
 }
+
+/// Cómo se muestra el modelo en la app: «1.1.1» o «1.0.0 (respaldo del APK)».
+String etiquetaModelo(String version, {required bool delApk}) => delApk ? '$version (respaldo del APK)' : version;
 
 /// Prepara la entrada del modelo: [1, alto, ancho, 3] en float32, normalizada
 /// según el contrato. Se hace en otro isolate.
@@ -111,9 +118,13 @@ class ClasificadorTflite implements Clasificador {
   ContratoModelo? _contrato;
   Interpreter? _interprete;
   bool _recargar = false;
+  bool _delApk = false;
 
   @override
   String get versionModelo => _contrato?.version ?? 'sin-modelo';
+
+  @override
+  bool get modeloDelApk => _delApk;
 
   /// Llega un modelo nuevo: se carga en la próxima clasificación.
   void recargar() => _recargar = true;
@@ -129,6 +140,7 @@ class ClasificadorTflite implements Clasificador {
       if (descargado != null) {
         _contrato = ContratoModelo.desdeJson(descargado.$2);
         _interprete = Interpreter.fromBuffer(descargado.$1, options: opciones);
+        _delApk = false;
         return;
       }
     } catch (error) {
@@ -137,6 +149,7 @@ class ClasificadorTflite implements Clasificador {
     final json = await rootBundle.loadString('assets/modelo/modelo.json');
     _contrato = ContratoModelo.desdeJson(jsonDecode(json) as Map<String, dynamic>);
     _interprete = await Interpreter.fromAsset('assets/modelo/modelo.tflite', options: opciones);
+    _delApk = true;
   }
 
   @override

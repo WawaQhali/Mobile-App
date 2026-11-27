@@ -125,6 +125,9 @@ class ClasificadorFalso implements Clasificador {
   String get versionModelo => 'prueba';
 
   @override
+  bool get modeloDelApk => false;
+
+  @override
   Future<Prediccion> clasificar(Uint8List jpeg) async => prediccion;
 }
 
@@ -205,6 +208,8 @@ void main() {
     expect(find.text('Leve'), findsOneWidget);
     expect(find.text('Recomendación del RAG de prueba.'), findsOneWidget);
     expect(find.textContaining('Según guías clínicas validadas: guia de prueba'), findsOneWidget);
+    // Qué modelo dio el resultado y con qué confianza.
+    expect(find.text('Modelo prueba · 91 %'), findsOneWidget);
 
     await tocar(tester, find.text('Resumen para el médico'));
     expect(find.text('Niña · 3 años'), findsOneWidget);
@@ -226,6 +231,7 @@ void main() {
     expect(ultimo.orientacion!.fuentes, ['guia-de-prueba#2']);
     expect(ultimo.respuestas['extension'], 'una_zona');
     expect(ultimo.foto, isNotNull);
+    expect(ultimo.resultado!.modelo, 'prueba');
   });
 
   testWidgets('las preguntas no dicen si son signo de alarma o síntoma', (tester) async {
@@ -340,6 +346,11 @@ void main() {
     expect(find.text('¿Se le ponen morados los labios o la cara?'), findsOneWidget);
     expect(find.text('¿Las ronchas le pican?'), findsNothing); // el cuestionario se cortó
     expect(AppState.instance.ultimo!.severidad, 'alta');
+  });
+
+  test('la etiqueta del modelo avisa si es el respaldo del APK', () {
+    expect(etiquetaModelo('1.1.1', delApk: false), '1.1.1');
+    expect(etiquetaModelo('1.0.0', delApk: true), '1.0.0 (respaldo del APK)');
   });
 
   test('la severidad sigue las reglas del cuestionario v1', () {
