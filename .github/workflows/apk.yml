@@ -46,8 +46,27 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
+      # Firma fija (secretos ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS y
+      # ANDROID_KEY_PASSWORD). Si no están, se firma con la clave de depuración, como antes.
+      - name: Keystore de la firma
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/wawa.jks"
+            echo "WAWA_KEYSTORE=$RUNNER_TEMP/wawa.jks" >> "$GITHUB_ENV"
+          else
+            echo "Sin keystore: se firma con la clave de depuración"
+          fi
       - name: Compilar el APK
-        run: flutter build apk --release --dart-define=API_URL="$API_URL"
+        env:
+          WAWA_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          WAWA_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          WAWA_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        # --build-number sube el versionCode en cada corrida, para que Android lo tome como actualización.
+        run: >-
+          flutter build apk --release --dart-define=API_URL="$API_URL"
+          --build-number=${{ github.run_number }}
       - name: Nombre del APK
         id: nombre
         run: echo "archivo=wawa-qhali-$(git rev-parse --short=8 HEAD).apk" >> "$GITHUB_OUTPUT"
@@ -57,3 +76,22 @@ jobs:
           name: ${{ steps.nombre.outputs.archivo }}
           path: ${{ steps.nombre.outputs.archivo }}
           retention-days: 30
+      # Solo desde main y cuando ya está configurado Firebase (variable FIREBASE_APP_ID y secreto
+      # FIREBASE_SERVICE_ACCOUNT). Los probadores del grupo reciben un correo con el enlace.
+      - name: Distribuir por Firebase App Distribution
+        if: github.ref == 'refs/heads/main' && vars.FIREBASE_APP_ID != ''
+        env:
+          CUENTA_SERVICIO: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          ARCHIVO: ${{ steps.nombre.outputs.archivo }}
+          APP_ID: ${{ vars.FIREBASE_APP_ID }}
+          GRUPOS: ${{ vars.FIREBASE_GRUPOS || 'probadores' }}
+        run: |
+          printf '%s' "$CUENTA_SERVICIO" > "$RUNNER_TEMP/firebase.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase.json"
+          npx --yes firebase-tools@15.36.0 appdistribution:distribute "$ARCHIVO" \
+            --app "$APP_ID" --groups "$GRUPOS" \
+            --release-notes "$(git log -1 --format='%h · %s')"
+          rm -f "$RUNNER_TEMP/firebase.json"
+      - name: Borrar el keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/wawa.jks"
